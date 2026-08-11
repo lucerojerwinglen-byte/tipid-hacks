@@ -1,0 +1,20 @@
+{
+  "_comment": "Manual-override file (DATA-PIPELINE.md §2). Never overwritten by the pipeline. mi-unlimited-rice lives here permanently per DATA-MODEL.md §2/§4 — 'unlimited' isn't a countable unit the LLM extraction step can parse from the menu page, so this is a one-time hand-maintained entry, not a pipeline output.",
+  "items": [
+    {
+      "id": "mi-unlimited-rice",
+      "chain_id": "mang-inasal",
+      "name": "Unlimited Rice (per order)",
+      "category": "rice",
+      "price": 5,
+      "serves": 10,
+      "main_servings": 0,
+      "carb_servings": 10,
+      "shareable": true,
+      "is_combo": false,
+      "tags": [],
+      "available": true,
+      "price_confidence": "manual-override"
+    }
+  ]
+}

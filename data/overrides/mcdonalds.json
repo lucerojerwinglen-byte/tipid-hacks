@@ -1,0 +1,4 @@
+{
+  "_comment": "Manual-override file (DATA-PIPELINE.md §2). Never overwritten by the pipeline — the fallback if mcdomenuprices.com.ph goes dark/degrades, and where a validated 'wrong price' user report (PRD.md) gets applied. Empty until one of those happens.",
+  "items": []
+}
