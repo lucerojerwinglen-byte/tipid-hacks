@@ -31,6 +31,16 @@ describe("Mang Inasal: unlimited rice satisfies the carb requirement cheaply for
     expect(unlimitedRiceLine?.qty).toBe(1);
     expect(plainRiceLine).toBeUndefined();
   });
+
+  it("never pads bonus items with extra unlimited-rice orders in the default (maximum-food/'Pinaka Sulit') mode (OPEN-QUESTIONS.md, resolved)", () => {
+    const result = solve(mangInasal.items, 6, 100_000, "maximum-food");
+    expect(result.feasible).toBe(true);
+    const bonusUnlimitedRice = result.bonusItems.find((i) => i.item.id === "mi-unlimited-rice");
+    // A second (or 8th) "unlimited" rice order adds zero real food beyond the first — it's
+    // already unlimited. At most 1 is ever suggested; the rest of the huge leftover budget
+    // goes to real, countable food instead.
+    expect(bonusUnlimitedRice === undefined || bonusUnlimitedRice.qty === 1).toBe(true);
+  });
 });
 
 describe("Shakey's: a pizza's per-slice math beats N individual pasta orders", () => {

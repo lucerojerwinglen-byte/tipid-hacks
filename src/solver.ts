@@ -3,6 +3,13 @@
 
 import type { Item, ChainData } from "./types.js";
 
+/**
+ * `maximum-food` ("Pinaka Sulit" in the UI) is the app's default — see App.tsx. It spends the
+ * full budget maximizing food value instead of stopping at the minimum needed to cover
+ * everyone, per the product decision that the headline answer should be the best-value order,
+ * not the cheapest one. `feed-everyone` (minimum cost) and `cheapest-possible` remain available
+ * as explicit opt-in modes for users who specifically want to spend as little as possible.
+ */
 export type SolverMode = "feed-everyone" | "maximum-food" | "cheapest-possible";
 
 export interface ItemQty {
@@ -108,6 +115,25 @@ export function reconstructCoverage(
 }
 
 /**
+ * DATA-MODEL.md §4: "unlimited"-style items (e.g. Mang Inasal's unlimited rice) are modeled as
+ * near-zero-price with a serving count already >= the headcount, so one unit already satisfies
+ * that whole coverage dimension for the group. A second unit isn't "more food" the way a second
+ * bucket is — it's the identical infinite-refill pass, bought twice, for zero real-world
+ * benefit. Genuine bulk items (buckets, family/party sizes) are priced for what they physically
+ * contain, well above this ceiling, so they're unaffected and can still be bought again for
+ * real additional food.
+ */
+const UNLIMITED_STYLE_PRICE_CEILING = 10;
+
+function isUnlimitedStyle(item: Item, N: number): boolean {
+  return (
+    item.price <= UNLIMITED_STYLE_PRICE_CEILING &&
+    ((item.main_servings > 0 && item.main_servings >= N) ||
+      (item.carb_servings > 0 && item.carb_servings >= N))
+  );
+}
+
+/**
  * SOLVER.md §4, Phase 2: maximize total item count within a leftover budget.
  *
  * Bounded per item at maxQtyFor(N) (SOLVER.md §3) — without this, a very cheap item (e.g.
@@ -116,23 +142,28 @@ export function reconstructCoverage(
  * building Milestone 2 (ROADMAP.md) against real chain data — Jollibee's smaller leftover
  * budgets never hit this, Mang Inasal's near-zero-price item did immediately.
  *
- * Each item is capped at `maxQty` via the textbook bounded-knapsack DP: item-indexed layers
- * `dp[i][c]`, each explicitly trying every quantity `0..maxQty` of item `i` and recording
- * which quantity was best. This is deliberately NOT a single 1D array shared across items
- * (via either repeated relaxation passes or copy-expansion) — both of those bound the
- * computed *value* correctly but not the *reconstruction*: a shared parent-pointer array
- * can't tell "item i's 1st copy" from "item i's 3rd copy" while walking backward, so it keeps
- * re-chaining through the same cheap item past the intended cap regardless of how the value
- * array was built. That exact bug shipped twice (once as repeated passes, once as copy
- * expansion) before this comment existed — see solver.test.ts's regression case and
- * SOLVER.md §4. Layering the DP by item index sidesteps the problem entirely: `qtyUsed[i][c]`
- * is unambiguous about how much of item `i` specifically was used, so reconstruction is
- * correct by construction, not by hoping the pointers happen to behave.
+ * On top of that cap, `isUnlimitedStyle` items are further restricted to at most 1 unit
+ * (OPEN-QUESTIONS.md, "phase 2 can suggest more of an item that's already at its coverage
+ * ceiling") — this mode is now the default result (see solver's `solve` doc comment), so a
+ * suggestion like "8x Unlimited Rice" padding out the headline answer stopped being a
+ * low-priority polish item and became a default-experience bug worth fixing now.
+ *
+ * Each item is capped via the textbook bounded-knapsack DP: item-indexed layers `dp[i][c]`,
+ * each explicitly trying every quantity `0..maxQty` of item `i` and recording which quantity
+ * was best. This is deliberately NOT a single 1D array shared across items (via either
+ * repeated relaxation passes or copy-expansion) — both of those bound the computed *value*
+ * correctly but not the *reconstruction*: a shared parent-pointer array can't tell "item i's
+ * 1st copy" from "item i's 3rd copy" while walking backward, so it keeps re-chaining through
+ * the same cheap item past the intended cap regardless of how the value array was built. That
+ * exact bug shipped twice (once as repeated passes, once as copy expansion) before this
+ * comment existed — see solver.test.ts's regression case and SOLVER.md §4. Layering the DP by
+ * item index sidesteps the problem entirely: `qtyUsed[i][c]` is unambiguous about how much of
+ * item `i` specifically was used, so reconstruction is correct by construction, not by hoping
+ * the pointers happen to behave.
  */
 export function maximizeLeftoverValue(items: Item[], leftoverBudget: number, N: number): ItemQty[] {
   if (leftoverBudget <= 0) return [];
   const available = items.filter((i) => i.available);
-  const maxQty = maxQtyFor(N);
   const n = available.length;
 
   const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(leftoverBudget + 1).fill(0));
@@ -141,6 +172,7 @@ export function maximizeLeftoverValue(items: Item[], leftoverBudget: number, N: 
   for (let i = 1; i <= n; i++) {
     const item = available[i - 1]!;
     const prevLayer = dp[i - 1]!;
+    const maxQty = isUnlimitedStyle(item, N) ? 1 : maxQtyFor(N);
     const maxAffordableAt = (c: number) =>
       item.price > 0 ? Math.min(maxQty, Math.floor(c / item.price)) : 0;
 

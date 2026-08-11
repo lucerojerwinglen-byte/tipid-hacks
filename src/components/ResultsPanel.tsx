@@ -46,10 +46,19 @@ export function ResultsPanel({ result, chainName, runnersUp }: ResultsPanelProps
     <>
       <div className="torn-strip torn-strip--zigzag" />
       <div className="rounded-b-lg border border-t-0 border-line bg-paper p-5 shadow-sm">
-        {chainName && (
-          <p className="mb-3 inline-block rounded border border-peso px-2 py-0.5 text-xs font-bold tracking-wide text-peso uppercase">
-            Best deal: {chainName}
-          </p>
+        {(chainName || result.mode === "maximum-food") && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {chainName && (
+              <p className="inline-block rounded border border-peso px-2 py-0.5 text-xs font-bold tracking-wide text-peso uppercase">
+                Best deal: {chainName}
+              </p>
+            )}
+            {result.mode === "maximum-food" && (
+              <p className="inline-block rounded border border-peso bg-peso px-2 py-0.5 text-xs font-bold tracking-wide text-paper uppercase">
+                Pinaka Sulit
+              </p>
+            )}
+          </div>
         )}
 
         <ul className="divide-y divide-dashed divide-line">

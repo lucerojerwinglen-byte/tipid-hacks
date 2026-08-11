@@ -79,8 +79,9 @@ creation).
 - Share result as an image — this is how it spreads in the Philippines, via group chats
 - Tagalog / English toggle
 - Simple dietary filters (no pork, no beef, no spicy)
-- Solver modes: "feed everyone" (default) vs "maximum food" vs "cheapest possible" — see
-  SOLVER.md for exact semantics
+- Solver modes: **"Pinaka Sulit" (maximum food, default)** vs "Pinaka Mura" (feed everyone,
+  minimum cost) vs "cheapest possible" — the app's headline answer is the best-value order for
+  the money, not the cheapest one that technically qualifies; see SOLVER.md for exact semantics
 
 ### Could have (later)
 
@@ -120,10 +121,17 @@ solver-design diversity, not pure market share:
 
 ## 6. Solver behavior (product-level summary — full formulation in SOLVER.md)
 
-- Every person gets ≥1 main + ≥1 carbohydrate/rice portion by default ("feed everyone" mode).
+- Every person gets ≥1 main + ≥1 carbohydrate/rice portion, in every mode — this coverage
+  requirement is the floor, not the headline answer.
+- **The default mode is "Pinaka Sulit" ("maximum food" internally):** after covering everyone,
+  the app spends the *rest* of the stated budget maximizing food value, instead of stopping at
+  the minimum spend. The default answer users see is deliberately not "the cheapest way to
+  technically feed everyone" — it's "the most food/value for what you told us you have."
+  "Pinaka Mura" (the old "feed everyone" minimum-cost mode) and "cheapest possible" remain
+  available as explicit opt-ins for someone who genuinely wants to spend as little as possible.
 - No explicit quality/desirability floor beyond category tagging — the solver can pick the
-  cheapest qualifying main. Revisit only if real usage shows this feels bad.
-- If budget × headcount makes "feed everyone" infeasible, the app says so honestly and
+  cheapest qualifying main for coverage. Revisit only if real usage shows this feels bad.
+- If budget × headcount makes full coverage infeasible, the app says so honestly and
   auto-offers the "cheapest possible" answer instead of a dead end.
 - "Any chain" never mixes items across chains in one order — it solves per chain and shows the
   winner plus runners-up.

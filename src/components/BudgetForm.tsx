@@ -1,8 +1,13 @@
 import type { SolverMode } from "../solver.js";
 
-const MODES: { value: SolverMode; label: string; hint: string }[] = [
-  { value: "feed-everyone", label: "Feed Everyone", hint: "Cheapest way everyone gets a full meal" },
-  { value: "maximum-food", label: "Maximum Food", hint: "Spend the whole budget, everyone still gets fed" },
+const MODES: { value: SolverMode; label: string; hint: string; badge?: string }[] = [
+  {
+    value: "maximum-food",
+    label: "Pinaka Sulit",
+    hint: "Best value — pinakamaraming pagkain para sa perang ginastos, hindi ang pinakamura",
+    badge: "Default",
+  },
+  { value: "feed-everyone", label: "Pinaka Mura", hint: "Cheapest way everyone still gets a full meal" },
   { value: "cheapest-possible", label: "Cheapest Possible", hint: "Lowest total spend, even if it can't cover everyone" },
 ];
 
@@ -81,7 +86,14 @@ export function BudgetForm({
                   : "border-line bg-paper hover:border-ink-muted"
               }`}
             >
-              <span className="block font-semibold text-ink">{m.label}</span>
+              <span className="flex items-center gap-2">
+                <span className="block font-semibold text-ink">{m.label}</span>
+                {m.badge && (
+                  <span className="rounded border border-peso px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-peso uppercase">
+                    {m.badge}
+                  </span>
+                )}
+              </span>
               <span className="block text-sm text-ink-muted">{m.hint}</span>
             </button>
           ))}

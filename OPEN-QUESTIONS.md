@@ -56,14 +56,14 @@ them resolved). Listed so they don't get silently forgotten.
 
 ## Solver polish noticed while building Milestone 2
 
-- **Phase 2 can suggest more of an item that's already at its coverage ceiling** — e.g. Mang
-  Inasal's leftover-budget suggestions included "8× Unlimited Rice" even though 1 order
-  already covers the whole group's carb requirement. Not a bug (each suggested quantity is
-  correctly capped per `maxQtyFor(N)` per item — see SOLVER.md §4's regression note), just a
-  low-value suggestion since additional unlimited-rice orders add nothing once one is already
-  in the cart. **Resolves by:** phase 2 could deprioritize/exclude items whose relevant
-  coverage dimension is already saturated by the phase-1 selection — worth doing only if real
-  usage shows these suggestions read as confusing rather than just slightly wasteful.
+- ~~**Phase 2 can suggest more of an item that's already at its coverage ceiling**~~ —
+  **Resolved.** Mang Inasal's leftover-budget suggestions used to include "8× Unlimited Rice"
+  even though 1 order already covers the whole group's carb requirement. This stopped being a
+  low-priority polish item once `maximum-food` ("Pinaka Sulit") became the app's *default*
+  mode (PRD.md §6) — a padded, nonsense-looking suggestion in the default answer is a real
+  product problem, not a nice-to-have fix. Phase 2 now caps any "unlimited-style" item
+  (near-zero price, single-unit serving contribution already ≥ headcount) at 1 unit; see
+  `isUnlimitedStyle` in solver.ts and SOLVER.md §4.
 
 ## Modeling approximations flagged as worth revisiting
 

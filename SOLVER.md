@@ -30,7 +30,8 @@ Considered and rejected during planning (see ARCHITECTURE.md for the research ba
 - `N` — headcount (integer, 1-10 in practice; no hard cap enforced, but the UI should warn
   above ~15 since coverage-based modeling stops meaning much for very large ad-hoc groups)
 - `chain` — a specific chain, or "any" (see §5)
-- `mode` — `feed-everyone` (default) | `maximum-food` | `cheapest-possible`
+- `mode` — `maximum-food` (default, presented as "Pinaka Sulit" — best value, not just cheapest)
+  | `feed-everyone` ("Pinaka Mura" — minimum cost) | `cheapest-possible`
 - Optional dietary filters (tag-based exclusion, applied by removing matching items from the
   candidate pool before solving — no solver-level special casing needed)
 - The chain's item catalog: each item has `price`, `category` (main/rice/side/drink/dessert/
@@ -143,12 +144,24 @@ function maximizeLeftoverValue(items, leftoverBudget, N):
     return chosen[leftoverBudget]
 ```
 
+**Unlimited-style items are further capped at 1 unit, on top of `maxQty`.** An item modeled per
+§3's "unlimited rice" pattern — near-zero price, single-unit serving contribution already ≥ N —
+adds zero real food value on a second purchase; you already had the unlimited version once.
+Without this, Phase 2's count-maximizing objective happily recommends many copies of the
+cheapest such item (e.g. "8× Unlimited Rice"), which reads as a broken suggestion rather than
+genuine value — flagged in OPEN-QUESTIONS.md, and resolved once `maximum-food` became the
+app's default (below), since it's now what most users see first. Real bulk items (buckets,
+family/party sizes) are priced for what they physically contain, well above the near-zero
+threshold, so they're unaffected and can still be bought again for genuinely more food.
+
 `feed-everyone` and `maximum-food` modes both run phase 1 then phase 2 — they are, honestly,
 the *same computation*. The difference is presentation, not algorithm: `feed-everyone`
 headlines the minimum-cost solution and shows phase-2 additions as an optional "you could also
 add..." suggestion; `maximum-food` headlines the fully-spent total (phase 1 + all of phase 2)
-as the primary order. This was a genuine finding while formalizing the algorithm, worth
-knowing before building the UI so the two modes aren't accidentally implemented as duplicate
+as the primary order — **and is the app's default**, presented to users as "Pinaka Sulit," so
+that the default answer is the best-value order rather than the cheapest one. This was a
+genuine finding while formalizing the algorithm, worth knowing before building the UI so the
+two modes aren't accidentally implemented as duplicate
 logic.
 
 ### `cheapest-possible` mode and the infeasible fallback
@@ -222,3 +235,4 @@ explainability, not a hidden taste model.
 | 7 | Shakey's, feed-everyone | Pizza slices satisfy both main and carb per §3's dual-contribution modeling; revisit once real data confirms slice-per-box counts |
 | 8 | Dietary filter removes all "main" category items for a chain | Distinct from budget-infeasibility — the message shown must say "no matching items for your filters here," not "not enough budget," since the fix is different (change filters vs. raise budget or headcount) |
 | 9 | Two distinct item combinations tie at the same minimum cost | Same input always produces the same output (§7) |
+| 10 | Mang Inasal, large budget, maximum-food (the default) | Phase 2 never suggests more than 1 unit of the unlimited-rice item — a second "unlimited" order is zero real additional food, per §4's unlimited-style cap |

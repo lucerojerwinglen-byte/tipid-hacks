@@ -15,7 +15,9 @@ import { excludeTags, solve, solveAnyChain, type SolverMode } from "./solver.js"
 export function App() {
   const [budget, setBudget] = useState("300");
   const [headcount, setHeadcount] = useState("4");
-  const [mode, setMode] = useState<SolverMode>("feed-everyone");
+  // Default to the best-value order ("Pinaka Sulit"), not the cheapest one — see solver.ts's
+  // SolverMode doc comment. Users can still opt into "Pinaka Mura" (feed-everyone) explicitly.
+  const [mode, setMode] = useState<SolverMode>("maximum-food");
   const [chainId, setChainId] = useState("any");
   const [excludedTags, setExcludedTags] = useState<string[]>([]);
 
