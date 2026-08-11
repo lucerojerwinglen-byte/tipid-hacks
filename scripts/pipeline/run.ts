@@ -42,7 +42,7 @@ export async function runChain(chainId: string, options: RunOptions): Promise<Ru
 
   // Stage 4: LLM parse.
   const cleaned = stripHtmlNoise(raw);
-  console.log(`Extracting items via Gemini (${cleaned.length.toLocaleString()} chars of input)...`);
+  console.log(`Extracting items via Groq (${cleaned.length.toLocaleString()} chars of input)...`);
   const extracted = await extractItems(cleaned, source.chain_name);
   console.log(`Extracted ${extracted.length} raw items.`);
 

@@ -5,17 +5,16 @@
 //   npm run pipeline -- jollibee mcdonalds    # specific chains
 //   npm run pipeline -- --no-commit           # write src/data/*.ts but skip the git commit
 //
-// Requires GEMINI_API_KEY (free-tier Google AI Studio key per DATA-PIPELINE.md §4) — put
-// it in a .env file at the project root (see .env.example); .env is git-ignored and never
-// committed.
+// Requires GROQ_API_KEY (free-tier Groq API key per DATA-PIPELINE.md §4) — put it in a .env
+// file at the project root (see .env.example); .env is git-ignored and never committed.
 
 import "dotenv/config";
 import { PIPELINE_SOURCES } from "./pipeline/sources.js";
 import { runChain } from "./pipeline/run.js";
 
-if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "your-gemini-api-key-here") {
+if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === "your-groq-api-key-here") {
   console.error(
-    "GEMINI_API_KEY is not set. Copy .env.example to .env and paste your real key in there.",
+    "GROQ_API_KEY is not set. Copy .env.example to .env and paste your real key in there.",
   );
   process.exit(1);
 }

@@ -44,15 +44,51 @@ export async function recordChecksum(chainId: string, content: string): Promise<
   await writeFile(CHECKSUMS_PATH, JSON.stringify(checksums, null, 2) + "\n", "utf-8");
 }
 
+const HTML_ENTITIES: Record<string, string> = {
+  nbsp: " ",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  hellip: "...",
+  mdash: "—",
+  ndash: "–",
+  rsquo: "'",
+  lsquo: "'",
+  rdquo: '"',
+  ldquo: '"',
+};
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&(nbsp|amp|lt|gt|quot|apos|hellip|mdash|ndash|rsquo|lsquo|rdquo|ldquo);/g, (_, name) => HTML_ENTITIES[name] ?? _)
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)));
+}
+
 /**
- * Strips script/style/comment noise from raw HTML before it goes to the LLM — cuts token
- * spend without touching the visible text (prices, item names) the extraction step reads.
+ * Strips a raw fetched page down to visible text before it goes to the LLM. Markup-heavy pages
+ * (deeply nested divs, class/id/data-* attributes) can be 10-20x the size of their actual
+ * visible content — Groq's free-tier tokens-per-minute limit is a few thousand tokens, so
+ * sending near-raw HTML (fine for Claude/Gemini's much larger request budgets) blows straight
+ * through it on real menu pages. Tags are converted to plain text rather than merely trimmed.
  */
 export function stripHtmlNoise(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
+  return decodeEntities(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<!--[\s\S]*?-->/g, "")
+      // Preserve visual line breaks between block-level elements before the tag strip below,
+      // so adjacent item names/prices don't get glued into one unparseable run of text.
+      .replace(/<\/(p|div|li|tr|td|th|h[1-6]|section|article|header|footer|ul|ol)>/gi, "\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
     .replace(/\n{3,}/g, "\n\n")
-    .slice(0, 400_000); // Safety valve — a well-formed menu page is nowhere near this large.
+    .trim()
+    .slice(0, 400_000); // Safety valve — a well-formed menu page's visible text is nowhere near this large.
 }

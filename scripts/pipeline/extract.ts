@@ -1,12 +1,25 @@
-// Stage 4 (LLM parse) of DATA-PIPELINE.md §2. Gemini via structured outputs (free tier —
+// Stage 4 (LLM parse) of DATA-PIPELINE.md §2. Groq via structured outputs (free tier —
 // see DATA-PIPELINE.md §4), used here specifically because it's resilient to page-layout
 // redesigns in a way CSS-selector scraping isn't.
 
-import { GoogleGenAI, FinishReason } from "@google/genai";
+import Groq, { RateLimitError } from "groq-sdk";
 import { z } from "zod";
 import type { ExtractedItem, ExtractionResult } from "./types.js";
 
-const MODEL = "gemini-3.6-flash";
+// Of the models this account can reach, only the gpt-oss pair and llama-3.1-8b-instant support
+// response_format: json_schema at all (llama-3.3-70b-versatile rejects it outright) — checked
+// directly against the Groq API's own error responses, not docs, since free-tier support and
+// limits vary per org and aren't reliably documented. gpt-oss-120b is the largest/most capable
+// of that set and carries the highest free-tier tokens-per-minute budget of the three (8,000
+// TPM vs 6,000 for llama-3.1-8b-instant).
+const MODEL = "openai/gpt-oss-120b";
+
+// Free-tier TPM counts requested max_completion_tokens against the same per-minute budget as
+// the input, so a single request covering a whole menu page (which can need tens of thousands
+// of output tokens) blows straight through it. Chunking the input keeps each request's
+// input + max_completion_tokens comfortably under MODEL's 8,000 TPM limit.
+const MAX_COMPLETION_TOKENS = 6000;
+const CHUNK_CHAR_LIMIT = 3000;
 
 const CATEGORIES = ["main", "rice", "side", "drink", "dessert", "combo"] as const;
 
@@ -115,57 +128,116 @@ Rules:
 - Extract every priced, orderable menu item you can find. Skip navigation, footer, and unrelated marketing copy.
 - price is pesos as a plain integer (no currency symbol, no comma, no decimals — round to nearest peso if a decimal appears).
 - main_servings/carb_servings: a regular single main (e.g. "1pc Chicken, no rice") has main_servings 1, carb_servings 0. The same item "with rice" has both 1. A rice-only item has main_servings 0, carb_servings 1. A drink/side/dessert has both 0.
-- For a combo (is_combo: true), main_servings/carb_servings/serves should equal the SUM of its listed components' own values, and combo_component_names must list every component by the exact name it has elsewhere in your output items array — do not invent a name that isn't also a separate item.
+- Only set is_combo: true when every one of its components is ALSO separately priced elsewhere in this same extraction — in that case combo_component_names must list each one by the exact name it has as its own item, and main_servings/carb_servings/serves must equal the SUM of those components' own values. If a bundle's components are not separately priced anywhere in this content (e.g. a "Big Mac Meal" price with no separate "Big Mac" price listed on its own), it is NOT decomposable here: set is_combo: false, combo_component_names: [], and estimate main_servings/carb_servings/serves directly from what the bundle itself contains.
 - shareable is true only for genuinely multi-person items (buckets, family meals, party platters), not for a large single-serve drink or fries.
 - Do not fabricate items, prices, or serving counts that aren't actually present in the content.`;
 
-export async function extractItems(rawText: string, chainName: string): Promise<ExtractedItem[]> {
-  const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-  // Streamed, not generateContent(): a full menu's worth of structured JSON can run well past
-  // the point a single non-streaming call risks an HTTP timeout, and maxOutputTokens here has
-  // to cover every extracted item, not just a short answer.
-  const stream = await client.models.generateContentStream({
-    model: MODEL,
-    contents: `Chain: ${chainName}\n\nRaw page content:\n\n${rawText}`,
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      maxOutputTokens: 64000,
-      responseMimeType: "application/json",
-      responseJsonSchema: OUTPUT_SCHEMA,
-    },
+/** Splits on paragraph breaks (each menu item is its own block after stripHtmlNoise) so a
+ * chunk boundary never lands mid-item; hard-slices the rare oversized paragraph as a fallback. */
+function chunkText(text: string): string[] {
+  const paragraphs = text.split(/\n{2,}/).flatMap((p) => {
+    if (p.length <= CHUNK_CHAR_LIMIT) return [p];
+    const pieces: string[] = [];
+    for (let i = 0; i < p.length; i += CHUNK_CHAR_LIMIT) pieces.push(p.slice(i, i + CHUNK_CHAR_LIMIT));
+    return pieces;
   });
 
-  let text = "";
-  let finishReason: FinishReason | undefined;
-  for await (const chunk of stream) {
-    text += chunk.text ?? "";
-    finishReason = chunk.candidates?.[0]?.finishReason ?? finishReason;
+  const chunks: string[] = [];
+  let current = "";
+  for (const para of paragraphs) {
+    if (current && current.length + para.length + 2 > CHUNK_CHAR_LIMIT) {
+      chunks.push(current);
+      current = para;
+    } else {
+      current = current ? `${current}\n\n${para}` : para;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+async function extractChunk(client: Groq, chunkText: string, label: string): Promise<ExtractedItem[]> {
+  // Streamed, not a single non-streaming call: a chunk's worth of structured JSON can still
+  // run long enough to risk an HTTP timeout on a non-streaming call.
+  const createStream = () =>
+    client.chat.completions.create({
+      model: MODEL,
+      stream: true,
+      max_completion_tokens: MAX_COMPLETION_TOKENS,
+      // gpt-oss is a reasoning model: hidden reasoning tokens are drawn from the same
+      // max_completion_tokens budget as the visible JSON, so "medium" (the default) can burn
+      // through the budget before any actual output is written. This is pure extraction, not
+      // a task that benefits from deliberation, so keep it low.
+      reasoning_effort: "low",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Chain: ${label}\n\nRaw page content:\n\n${chunkText}` },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "menu_extraction",
+          schema: OUTPUT_SCHEMA,
+          strict: true,
+        },
+      },
+    });
+
+  let stream;
+  try {
+    stream = await createStream();
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      const retryAfterSeconds = Number(err.headers?.get("retry-after")) || 20;
+      console.log(`  Rate limited on ${label}, waiting ${retryAfterSeconds}s before retrying...`);
+      await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
+      stream = await createStream();
+    } else {
+      throw err;
+    }
   }
 
-  if (finishReason === FinishReason.MAX_TOKENS) {
+  let text = "";
+  let finishReason: string | null = null;
+  for await (const chunk of stream) {
+    text += chunk.choices[0]?.delta?.content ?? "";
+    finishReason = chunk.choices[0]?.finish_reason ?? finishReason;
+  }
+
+  if (finishReason === "length") {
     throw new Error(
-      `Extraction for ${chainName} hit the maxOutputTokens limit before finishing — the menu is larger than expected, or the model over-extracted. Raise maxOutputTokens in extract.ts.`,
+      `Extraction for ${label} hit the max_completion_tokens limit before finishing — lower CHUNK_CHAR_LIMIT or raise MAX_COMPLETION_TOKENS in extract.ts.`,
     );
   }
 
-  if (finishReason && finishReason !== FinishReason.STOP) {
-    throw new Error(`Extraction for ${chainName} ended abnormally (finishReason: ${finishReason}).`);
+  if (finishReason && finishReason !== "stop") {
+    throw new Error(`Extraction for ${label} ended abnormally (finish_reason: ${finishReason}).`);
   }
 
   if (!text) {
-    throw new Error(`No text content in extraction response for ${chainName}. finishReason=${finishReason}`);
+    throw new Error(`No text content in extraction response for ${label}. finish_reason=${finishReason}`);
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch (err) {
-    throw new Error(
-      `Extraction output for ${chainName} was not valid JSON: ${(err as Error).message}`,
-    );
+    throw new Error(`Extraction output for ${label} was not valid JSON: ${(err as Error).message}`);
   }
 
   const result: ExtractionResult = extractionResultSchema.parse(parsed);
   return result.items;
+}
+
+export async function extractItems(rawText: string, chainName: string): Promise<ExtractedItem[]> {
+  const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  const chunks = chunkText(rawText);
+
+  const allItems: ExtractedItem[] = [];
+  for (const [index, chunk] of chunks.entries()) {
+    const label = chunks.length > 1 ? `${chainName} (chunk ${index + 1}/${chunks.length})` : chainName;
+    if (chunks.length > 1) console.log(`  Extracting ${label} (${chunk.length.toLocaleString()} chars)...`);
+    allItems.push(...(await extractChunk(client, chunk, label)));
+  }
+  return allItems;
 }

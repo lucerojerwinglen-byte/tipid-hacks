@@ -43,7 +43,7 @@ against an anti-bot system) for a project that has to survive on near-zero maint
 2. Fetch — per §1's method per chain (plain fetch or Playwright)
 3. Checksum gate — hash the raw fetched content; if unchanged since last run, stop here.
    No LLM call, no diff, no commit. Keeps git history meaningful and avoids pointless spend.
-4. LLM parse — Gemini (`gemini-3.6-flash`) via structured output (JSON schema), enforcing a
+4. LLM parse — Groq (`openai/gpt-oss-120b`) via structured output (JSON schema), enforcing a
    strict JSON schema (see DATA-MODEL.md). An LLM is used here specifically because it's
    resilient to layout redesigns in a way CSS-selector scraping isn't — the selector breaks,
    the LLM reading rendered content generally doesn't.
@@ -80,18 +80,20 @@ applied.
 
 ## 4. Cost estimate
 
-Originally built on Claude Sonnet 5 (pay-as-you-go), then switched to Gemini
-(`gemini-3.6-flash`) via Google AI Studio's free tier — this is a personal side project, and
-the free tier's rate limits (well above weekly, 6-chain, checksum-gated usage) comfortably
-cover it.
+Originally built on Claude Sonnet 5 (pay-as-you-go), briefly switched to Gemini
+(`gemini-3.6-flash`) via Google AI Studio's free tier, then moved to Groq
+(`openai/gpt-oss-120b`) after the Google account hit an account-level API restriction that
+required linking billing (which would have removed Gemini's free tier entirely) — this is a
+personal side project, and Groq's free tier rate limits (well above weekly, 6-chain,
+checksum-gated usage) comfortably cover it.
 
-**≈$0/month.** No billing account required; a Google AI Studio API key is free with no card
-on file. If usage ever needs to exceed the free tier's daily quota, Gemini's paid tier is the
-fallback — but at this project's scale (6 chains, weekly cadence, checksum-gated so unchanged
-pages skip the LLM call entirely) that shouldn't happen.
+**≈$0/month.** No billing account required; a Groq API key is free with no card on file. If
+usage ever needs to exceed the free tier's daily quota, Groq's paid tier is the fallback — but
+at this project's scale (6 chains, weekly cadence, checksum-gated so unchanged pages skip the
+LLM call entirely) that shouldn't happen.
 
-This runs on a **free Google AI Studio API key** (aistudio.google.com/apikey) — separate from
-any other Google account billing.
+This runs on a **free Groq API key** (console.groq.com/keys) — a separate account system from
+Google entirely.
 
 ---
 
