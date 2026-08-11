@@ -14,7 +14,7 @@
     "pipeline": "tsx scripts/run-pipeline.ts"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.70.0",
+    "@anthropic-ai/sdk": "^0.116.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",

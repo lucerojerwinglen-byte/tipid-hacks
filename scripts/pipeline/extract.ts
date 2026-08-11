@@ -123,11 +123,14 @@ Rules:
 export async function extractItems(rawText: string, chainName: string): Promise<ExtractedItem[]> {
   const client = new Anthropic();
 
-  const response = await client.beta.messages.create({
+  // Streamed, not .create(): a full menu's worth of structured JSON can run well past the
+  // point non-streaming requests risk an SDK HTTP timeout, and max_tokens here has to cover
+  // every extracted item, not just a short answer.
+  const stream = client.beta.messages.stream({
     model: MODEL,
-    max_tokens: 8192,
+    max_tokens: 32000,
     system: SYSTEM_PROMPT,
-    output_format: { type: "json_schema", schema: OUTPUT_SCHEMA },
+    output_config: { format: { type: "json_schema", schema: OUTPUT_SCHEMA } },
     messages: [
       {
         role: "user",
@@ -135,6 +138,13 @@ export async function extractItems(rawText: string, chainName: string): Promise<
       },
     ],
   });
+  const response = await stream.finalMessage();
+
+  if (response.stop_reason === "max_tokens") {
+    throw new Error(
+      `Extraction for ${chainName} hit the max_tokens limit before finishing — the menu is larger than expected, or the model over-extracted. Raise max_tokens in extract.ts.`,
+    );
+  }
 
   if (response.stop_reason === "refusal") {
     throw new Error(`Extraction refused by the model for ${chainName} (stop_reason: refusal).`);
@@ -142,7 +152,10 @@ export async function extractItems(rawText: string, chainName: string): Promise<
 
   const textBlock = response.content.find((block) => block.type === "text");
   if (!textBlock || textBlock.type !== "text") {
-    throw new Error(`No text content in extraction response for ${chainName}.`);
+    const blockTypes = response.content.map((b) => b.type).join(", ") || "(empty)";
+    throw new Error(
+      `No text content in extraction response for ${chainName}. stop_reason=${response.stop_reason}, blocks=[${blockTypes}], usage=${JSON.stringify(response.usage)}`,
+    );
   }
 
   let parsed: unknown;
