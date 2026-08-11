@@ -1,6 +1,10 @@
-// Covers SOLVER.md §8's test-case table. Cases 1-3, 8 use the real hand-typed Jollibee
-// dataset (Milestone 0); cases 4-7, 9 use small synthetic fixtures where a targeted,
-// controlled scenario proves the point more clearly than the full menu would.
+// Covers SOLVER.md §8's test-case table. Cases 2-3 use the real Jollibee pipeline dataset —
+// their assertions are structural (feasible/greater-than/etc.), not tied to exact prices, so
+// they double as a live smoke test. Cases 1, 4-9 use small synthetic fixtures where a
+// targeted, controlled scenario proves the point more clearly than the full menu would; per
+// the planning brief, "the structural insight survives price drift even when exact numbers
+// are stale" — case 1 in particular pins the brief's own illustrative peso figures (₱69/₱80,
+// see DATA-MODEL.md §5), which real scraped pricing has no obligation to match.
 
 import { describe, expect, it } from "vitest";
 import { jollibee } from "./data/jollibee.js";
@@ -27,18 +31,36 @@ function item(overrides: Partial<Item> & Pick<Item, "id" | "price">): Item {
 }
 
 describe("case 1: brief's own worked example — ₱300, 4 people, Jollibee, feed-everyone", () => {
-  const result = solve(jollibeeItems, 4, 300, "feed-everyone");
+  // Small synthetic fixture reproducing the brief's own illustrative prices exactly (DATA-
+  // MODEL.md §5: ₱69 ala carte 1pc Chickenjoy w/ rice, ₱80 combo) — decoupled from the real
+  // pipeline's Jollibee data, which reprices/restructures weekly and has no obligation to
+  // still contain this exact ₱69 SKU or reproduce this exact scenario.
+  const alaCarte = item({
+    id: "jb-chickenjoy-1pc-rice",
+    price: 69,
+    category: "main",
+    main_servings: 1,
+    carb_servings: 1,
+  });
+  const combo = item({
+    id: "jb-chickenjoy-combo",
+    price: 80,
+    category: "combo",
+    main_servings: 1,
+    carb_servings: 1,
+    is_combo: true,
+  });
+  const items = [alaCarte, combo];
+  const result = solve(items, 4, 300, "feed-everyone");
 
   it("finds the ala-carte combination, not the combo path", () => {
     expect(result.feasible).toBe(true);
     expect(result.coverageCost).toBe(276);
-    expect(result.coverageItems).toEqual([
-      { item: jollibeeItems.find((i) => i.id === "jb-chickenjoy-1pc-rice"), qty: 4 },
-    ]);
+    expect(result.coverageItems).toEqual([{ item: alaCarte, qty: 4 }]);
   });
 
   it("reports ₱44 savings vs the naive (combo) baseline, matching PRD.md §2 exactly", () => {
-    expect(computeNaiveBaseline(jollibeeItems, 4)).toBe(320); // 4 x ₱80 combo
+    expect(computeNaiveBaseline(items, 4)).toBe(320); // 4 x ₱80 combo
     expect(result.savings).toBe(44);
   });
 
@@ -155,8 +177,31 @@ describe("case 7: pizza-style dual main+carb contribution (Shakey's-style)", () 
 });
 
 describe("case 8: dietary filter removes all matching mains — distinct from budget-infeasibility", () => {
+  // Synthetic fixture: every main-category item carries an excluded tag, so the filter
+  // guarantees zero remaining "main" coverage (SOLVER.md §8 case 8's actual spec) — real
+  // Jollibee data isn't a reliable vehicle for this, since its tags aren't an exhaustive
+  // meat taxonomy (e.g. "burger steak"/"bacon" items aren't also tagged "beef"/"pork").
+  const chickenMain = item({
+    id: "chicken-main",
+    price: 60,
+    category: "main",
+    main_servings: 1,
+    carb_servings: 1,
+    tags: ["chicken"],
+  });
+  const porkMain = item({
+    id: "pork-main",
+    price: 65,
+    category: "main",
+    main_servings: 1,
+    carb_servings: 1,
+    tags: ["pork"],
+  });
+  const riceOnly = item({ id: "rice-only", price: 10, category: "rice", carb_servings: 1 });
+  const items = [chickenMain, porkMain, riceOnly];
+
   it("reports zero people covered when no item satisfies the coverage requirement at all", () => {
-    const noMeatItems = excludeTags(jollibeeItems, ["chicken", "beef", "pork"]);
+    const noMeatItems = excludeTags(items, ["chicken", "beef", "pork"]);
     const result = solve(noMeatItems, 4, 100_000, "feed-everyone");
     expect(result.feasible).toBe(false);
     expect(result.peopleCovered).toBe(0);
