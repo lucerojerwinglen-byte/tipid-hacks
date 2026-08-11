@@ -43,7 +43,7 @@ against an anti-bot system) for a project that has to survive on near-zero maint
 2. Fetch — per §1's method per chain (plain fetch or Playwright)
 3. Checksum gate — hash the raw fetched content; if unchanged since last run, stop here.
    No LLM call, no diff, no commit. Keeps git history meaningful and avoids pointless spend.
-4. LLM parse — Claude Sonnet 5 via the Batch API, structured output / tool-use enforcing a
+4. LLM parse — Gemini (`gemini-3.6-flash`) via structured output (JSON schema), enforcing a
    strict JSON schema (see DATA-MODEL.md). An LLM is used here specifically because it's
    resilient to layout redesigns in a way CSS-selector scraping isn't — the selector breaks,
    the LLM reading rendered content generally doesn't.
@@ -80,18 +80,18 @@ applied.
 
 ## 4. Cost estimate
 
-Verified via research during planning (Aug 2026 Anthropic pricing): Claude Sonnet 5 via the
-Batch API, weekly cadence, 6 chains, checksum-gated so unchanged pages cost nothing:
+Originally built on Claude Sonnet 5 (pay-as-you-go), then switched to Gemini
+(`gemini-3.6-flash`) via Google AI Studio's free tier — this is a personal side project, and
+the free tier's rate limits (well above weekly, 6-chain, checksum-gated usage) comfortably
+cover it.
 
-**≈$1.37–2.05/month.** This assumes every chain's content changes enough to trigger a parse
-every week — the real figure will be lower once checksum-gating skips no-op weeks. Cost is a
-non-issue at this scale regardless of exact model choice; Sonnet 5 was picked over the
-cheaper Haiku 4.5 (≈$0.68/month standard, ≈$0.34/month batch) specifically for parsing
-accuracy, since resilience to page changes is the entire reason an LLM is being used here
-instead of selectors.
+**≈$0/month.** No billing account required; a Google AI Studio API key is free with no card
+on file. If usage ever needs to exceed the free tier's daily quota, Gemini's paid tier is the
+fallback — but at this project's scale (6 chains, weekly cadence, checksum-gated so unchanged
+pages skip the LLM call entirely) that shouldn't happen.
 
-This runs on a **separate pay-as-you-go Anthropic API account** — the Claude Pro subscription
-does not include API credits.
+This runs on a **free Google AI Studio API key** (aistudio.google.com/apikey) — separate from
+any other Google account billing.
 
 ---
 

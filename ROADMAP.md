@@ -77,7 +77,7 @@ smallest pipeline lift, proves the fetch → LLM parse → validate → commit l
 
 - Mang Inasal (official, plain fetch), Jollibee and McDonald's (third-party sources, plain
   fetch) — see DATA-PIPELINE.md §1.
-- Checksum gate, Claude Sonnet 5 structured extraction, the three sanity rules, diff-before-
+- Checksum gate, Gemini structured extraction, the three sanity rules, diff-before-
   commit, manual-override file mechanism, `source_type`/`price_confidence` fields wired
   through to the data model.
 - Run manually first (not yet on a schedule) to build confidence in the output before

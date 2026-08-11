@@ -1,13 +1,12 @@
-// Stage 4 (LLM parse) of DATA-PIPELINE.md §2. Claude Sonnet 5 via structured outputs — chosen
-// over Haiku 4.5 specifically for parsing accuracy (DATA-PIPELINE.md §4), and used here
-// specifically because it's resilient to page-layout redesigns in a way CSS-selector
-// scraping isn't.
+// Stage 4 (LLM parse) of DATA-PIPELINE.md §2. Gemini via structured outputs (free tier —
+// see DATA-PIPELINE.md §4), used here specifically because it's resilient to page-layout
+// redesigns in a way CSS-selector scraping isn't.
 
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI, FinishReason } from "@google/genai";
 import { z } from "zod";
 import type { ExtractedItem, ExtractionResult } from "./types.js";
 
-const MODEL = "claude-sonnet-5";
+const MODEL = "gemini-3.6-flash";
 
 const CATEGORIES = ["main", "rice", "side", "drink", "dessert", "combo"] as const;
 
@@ -121,46 +120,46 @@ Rules:
 - Do not fabricate items, prices, or serving counts that aren't actually present in the content.`;
 
 export async function extractItems(rawText: string, chainName: string): Promise<ExtractedItem[]> {
-  const client = new Anthropic();
+  const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-  // Streamed, not .create(): a full menu's worth of structured JSON can run well past the
-  // point non-streaming requests risk an SDK HTTP timeout, and max_tokens here has to cover
-  // every extracted item, not just a short answer.
-  const stream = client.beta.messages.stream({
+  // Streamed, not generateContent(): a full menu's worth of structured JSON can run well past
+  // the point a single non-streaming call risks an HTTP timeout, and maxOutputTokens here has
+  // to cover every extracted item, not just a short answer.
+  const stream = await client.models.generateContentStream({
     model: MODEL,
-    max_tokens: 32000,
-    system: SYSTEM_PROMPT,
-    output_config: { format: { type: "json_schema", schema: OUTPUT_SCHEMA } },
-    messages: [
-      {
-        role: "user",
-        content: `Chain: ${chainName}\n\nRaw page content:\n\n${rawText}`,
-      },
-    ],
+    contents: `Chain: ${chainName}\n\nRaw page content:\n\n${rawText}`,
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      maxOutputTokens: 64000,
+      responseMimeType: "application/json",
+      responseJsonSchema: OUTPUT_SCHEMA,
+    },
   });
-  const response = await stream.finalMessage();
 
-  if (response.stop_reason === "max_tokens") {
+  let text = "";
+  let finishReason: FinishReason | undefined;
+  for await (const chunk of stream) {
+    text += chunk.text ?? "";
+    finishReason = chunk.candidates?.[0]?.finishReason ?? finishReason;
+  }
+
+  if (finishReason === FinishReason.MAX_TOKENS) {
     throw new Error(
-      `Extraction for ${chainName} hit the max_tokens limit before finishing — the menu is larger than expected, or the model over-extracted. Raise max_tokens in extract.ts.`,
+      `Extraction for ${chainName} hit the maxOutputTokens limit before finishing — the menu is larger than expected, or the model over-extracted. Raise maxOutputTokens in extract.ts.`,
     );
   }
 
-  if (response.stop_reason === "refusal") {
-    throw new Error(`Extraction refused by the model for ${chainName} (stop_reason: refusal).`);
+  if (finishReason && finishReason !== FinishReason.STOP) {
+    throw new Error(`Extraction for ${chainName} ended abnormally (finishReason: ${finishReason}).`);
   }
 
-  const textBlock = response.content.find((block) => block.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    const blockTypes = response.content.map((b) => b.type).join(", ") || "(empty)";
-    throw new Error(
-      `No text content in extraction response for ${chainName}. stop_reason=${response.stop_reason}, blocks=[${blockTypes}], usage=${JSON.stringify(response.usage)}`,
-    );
+  if (!text) {
+    throw new Error(`No text content in extraction response for ${chainName}. finishReason=${finishReason}`);
   }
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(textBlock.text);
+    parsed = JSON.parse(text);
   } catch (err) {
     throw new Error(
       `Extraction output for ${chainName} was not valid JSON: ${(err as Error).message}`,
