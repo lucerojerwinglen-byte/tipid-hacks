@@ -7,13 +7,19 @@ import { describe, expect, it } from "vitest";
 import { chains, mangInasal, shakeys } from "./data/chains.js";
 import { excludeTags, solve, solveAnyChain } from "./solver.js";
 
+// Shakey's real minimum cost to feed 4 (one Large pizza, ₱635 — DATA-PIPELINE.md §1) is above
+// ₱500, unlike the other five chains' cheaper per-person fast food. Not a sanity-band problem
+// (₱635/4 ≈ ₱159, well inside the 20-300 band below) — just a higher floor for this one chain.
+const BUDGET_FOR_4: Record<string, number> = { shakeys: 700 };
+
 describe("every chain produces a sane answer for a typical scenario", () => {
   for (const chainData of chains) {
-    it(`${chainData.chain.name}: ₱500 for 4 people is feasible and sane`, () => {
-      const result = solve(chainData.items, 4, 500, "feed-everyone");
+    const budget = BUDGET_FOR_4[chainData.chain.id] ?? 500;
+    it(`${chainData.chain.name}: ₱${budget} for 4 people is feasible and sane`, () => {
+      const result = solve(chainData.items, 4, budget, "feed-everyone");
       expect(result.feasible).toBe(true);
       expect(result.totalCost).toBeGreaterThan(0);
-      expect(result.totalCost).toBeLessThanOrEqual(500);
+      expect(result.totalCost).toBeLessThanOrEqual(budget);
       expect(result.coverageItems.length).toBeGreaterThan(0);
       // Sanity band, not a precision check — catches "a zero snuck into a price" class of bug.
       expect(result.totalCost / 4).toBeGreaterThan(20);
@@ -37,10 +43,12 @@ describe("Shakey's: a pizza's per-slice math beats N individual pasta orders", (
   it("prefers a whole pizza over per-person carbonara once the group is big enough", () => {
     const result = solve(shakeys.items, 4, 1000, "feed-everyone");
     expect(result.feasible).toBe(true);
-    const pizzaLine = result.coverageItems.find((i) => i.item.id === "sh-pizza-thin-regular");
+    // Regular only serves 2 (real site: "Good for 1-2 Persons"), so a group of 4 needs the
+    // Large (serves 4), not the Regular — unlike the old invented placeholder sizing.
+    const pizzaLine = result.coverageItems.find((i) => i.item.id === "sh-pizza-thin-large");
     expect(pizzaLine?.qty).toBe(1);
-    // ₱399 for 4 via pizza should beat 4x carbonara (₱149 each = ₱596).
-    expect(result.coverageCost).toBeLessThan(596);
+    // ₱635 for 4 via one Large pizza should beat 4x Carbonara Supreme (₱299 each = ₱1,196).
+    expect(result.coverageCost).toBeLessThan(1196);
   });
 
   it("a pizza slice satisfies both main and carb from a single purchase (DATA-MODEL.md §4)", () => {
