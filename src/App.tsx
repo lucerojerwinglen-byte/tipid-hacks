@@ -15,7 +15,9 @@ import { excludeTags, solve, solveAnyChain, type SolverMode } from "./solver.js"
 export function App() {
   const [budget, setBudget] = useState("300");
   const [headcount, setHeadcount] = useState("4");
-  const [mode, setMode] = useState<SolverMode>("feed-everyone");
+  // Default is "maximum-food" — the app's "Sulit" (best-value) mode, not the cheapest one.
+  // See CONTEXT.md's Sulit/Mura terms and docs/adr/0001-sulit-default-value-per-peso.md.
+  const [mode, setMode] = useState<SolverMode>("maximum-food");
   const [chainId, setChainId] = useState("any");
   const [excludedTags, setExcludedTags] = useState<string[]>([]);
 
@@ -68,7 +70,7 @@ export function App() {
 
       <header className="bg-peso px-4 pb-5 pt-6 text-paper">
         <div className="mx-auto max-w-md">
-          <h1 className="font-display text-2xl font-bold tracking-tight uppercase">Tipid Hacks</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight">barato</h1>
           <p className="mt-0.5 text-sm text-peso-soft">
             Presyo checker — para malaman kung ano ang kayang-kaya
           </p>

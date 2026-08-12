@@ -7,7 +7,7 @@ import path from "node:path";
 const CHECKSUMS_PATH = path.resolve(import.meta.dirname, "../../data/checksums.json");
 
 const USER_AGENT =
-  "tipid-hacks-pipeline/0.1 (+https://github.com/; weekly price-check, see DATA-PIPELINE.md)";
+  "barato-pipeline/0.1 (+https://github.com/; weekly price-check, see DATA-PIPELINE.md)";
 
 export async function fetchRaw(url: string): Promise<string> {
   const response = await fetch(url, { headers: { "User-Agent": USER_AGENT } });

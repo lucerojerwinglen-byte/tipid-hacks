@@ -98,8 +98,26 @@ export function ResultsPanel({ result, chainName, runnersUp }: ResultsPanelProps
 
         {chainName && feasibleRunnerUp && (
           <p className="mt-4 border-t border-dashed border-line pt-3 text-sm text-ink-muted">
-            {chainName} beats {feasibleRunnerUp.chain.name} by{" "}
-            {pesos(feasibleRunnerUp.result.totalCost - result.totalCost)} for this group.
+            {result.mode === "maximum-food" ? (
+              (() => {
+                const valueDiff = result.totalValue - feasibleRunnerUp.result.totalValue;
+                return valueDiff > 0 ? (
+                  <>
+                    {chainName} feeds you {valueDiff} more serving{valueDiff === 1 ? "" : "s"} than{" "}
+                    {feasibleRunnerUp.chain.name} for this budget.
+                  </>
+                ) : (
+                  <>
+                    {chainName} matches {feasibleRunnerUp.chain.name} on value for this budget.
+                  </>
+                );
+              })()
+            ) : (
+              <>
+                {chainName} beats {feasibleRunnerUp.chain.name} by{" "}
+                {pesos(feasibleRunnerUp.result.totalCost - result.totalCost)} for this group.
+              </>
+            )}
           </p>
         )}
 

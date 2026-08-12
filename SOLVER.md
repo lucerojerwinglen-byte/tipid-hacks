@@ -1,4 +1,4 @@
-# Solver — Tipid Hacks
+# Solver — barato
 
 **Status:** Formulation decided. This is the actual intellectual property of the project —
 everything else is plumbing around it.
@@ -111,21 +111,33 @@ this is what powers `cheapest-possible` mode and the infeasible-input fallback (
 ### Phase 2 — spend leftover budget maximizing value
 
 Given `minCost = dp[N][N]` and `leftover = B - minCost` (only runs if `minCost <= B`): a 1D
-knapsack maximizing total item count within `leftover` pesos, **bounded at `maxQty` per item**
-(same cap as Phase 1, SOLVER.md §3).
+knapsack maximizing total **food value** (`mainServings + carbServings` delivered, not raw item
+count — see "Sulit" below) within `leftover` pesos, **bounded at `maxQty` per item** (same cap
+as Phase 1, SOLVER.md §3).
 
-That bound is not optional here the way it effectively is in Phase 1. This was found the hard
-way while building Milestone 2 (ROADMAP.md) against Mang Inasal's real menu: its ₱5
-unlimited-rice add-on let an unbounded version of this function "maximize item count" by
-recommending 79 separate orders of it — technically correct under an uncapped objective,
-useless as a suggestion. Phase 1 gets away with loop order that technically allows unlimited
-reuse *within* a single pass, because its (m, r) state is capped and it minimizes cost, so
-excess copies are never preferred regardless. Phase 2 maximizes count with no such ceiling, so
-it needs the cap enforced for real — via `maxQty` repeated passes processed in **decreasing**
-budget order, which is what actually limits each pass to "at most one more unit of this item"
-(increasing order — Phase 1's order — lets a single pass chain unlimited reuse; decreasing
-order doesn't, because by the time a cell is revisited within the same pass, nothing later in
-that pass could have fed back into it):
+**"Sulit," not "mura" (ADR 0001, docs/adr/0001-sulit-default-value-per-peso.md).** Through
+Milestone 2 this objective maximized raw item *count*, which made "maximum-food" mode
+functionally "buy whatever's cheapest per unit" — a cheap objective wearing a value-sounding
+name. It's now weighted by each unit's actual `mainServings + carbServings`, so an item with
+zero of both — every drink, dessert, and side in the data model (DATA-MODEL.md) — contributes
+zero value no matter how cheap it is, and is therefore never chosen to fill leftover budget.
+This is the same DP shape as before; only the per-unit weight changed (`+1` → `+ itemValue`).
+See CONTEXT.md's `Sulit` / `Mura` / `Value (servings)` glossary entries for the vocabulary this
+maps to.
+
+That per-item cap is not optional here the way it effectively is in Phase 1. This was found the
+hard way while building Milestone 2 (ROADMAP.md) against Mang Inasal's real menu: its ₱5
+unlimited-rice add-on let an unbounded version of this function recommend 79 separate orders of
+it — technically correct under an uncapped objective, useless as a suggestion, and an even
+sharper trap under the value-weighted objective than the old count-weighted one, since each
+copy of that item is "worth" 10 value units (its `carbServings`), not just 1. Phase 1 gets away
+with loop order that technically allows unlimited reuse *within* a single pass, because its
+(m, r) state is capped and it minimizes cost, so excess copies are never preferred regardless.
+Phase 2 maximizes value with no such ceiling, so it needs the cap enforced for real — via
+`maxQty` repeated passes processed in **decreasing** budget order, which is what actually
+limits each pass to "at most one more unit of this item" (increasing order — Phase 1's order —
+lets a single pass chain unlimited reuse; decreasing order doesn't, because by the time a cell
+is revisited within the same pass, nothing later in that pass could have fed back into it):
 
 ```
 function maximizeLeftoverValue(items, leftoverBudget, N):
@@ -134,10 +146,11 @@ function maximizeLeftoverValue(items, leftoverBudget, N):
     maxQty = min(N + 2, 12)
 
     for item in items:
+        itemValue = item.mainServings + item.carbServings
         for q in 1..maxQty:
             for c from leftoverBudget down to item.price:
-                if best[c - item.price] + 1 > best[c]:
-                    best[c] = best[c - item.price] + 1
+                if best[c - item.price] + itemValue > best[c]:
+                    best[c] = best[c - item.price] + itemValue
                     chosen[c] = chosen[c - item.price] + [item]
 
     return chosen[leftoverBudget]
@@ -171,11 +184,16 @@ reports honestly: *"₱100 isn't enough to feed 8 people a full meal here — th
 
 No cross-chain mixing (decided during planning — a mixed order requires visiting two physical
 stores, which isn't a real action, and it would multiply the DP's item pool 6x for no
-real-world benefit). "Any chain" runs the full solve independently per chain and returns the
-lowest-cost chain that meets the requested mode, with the next 1-2 chains shown as runners-up
-("Jollibee beats Chowking by ₱44 for this group") — this is nearly free once all six are
-already being computed, and it's a genuine trust-building feature since it shows the user
-*why* the answer won instead of asserting it.
+real-world benefit). "Any chain" runs the full solve independently per chain and ranks them by
+**the requested mode's own objective** (ADR 0001): for `maximum-food` (the default, "Sulit")
+that's highest total food value delivered, not lowest cost — that mode always spends the full
+budget when feasible, so cost stops meaningfully differentiating chains and value is the honest
+comparison ("Jollibee feeds you 2 more servings than Chowking for this budget"). For
+`feed-everyone` and `cheapest-possible` — modes that are explicitly about minimizing spend —
+ranking stays cost-based, exactly as before ADR 0001 ("Jollibee beats Chowking by ₱44 for this
+group"). The next 1-2 chains are shown as runners-up either way — this is nearly free once all
+six are already being computed, and it's a genuine trust-building feature since it shows the
+user *why* the answer won instead of asserting it.
 
 ---
 
@@ -200,12 +218,15 @@ would; DP over the small coverage/budget state spaces does not, because it's pol
 
 ## 7. Ties and near-ties
 
-When multiple item combinations achieve the identical minimum cost, break ties
-**deterministically** by a stable canonical item ordering (e.g. item ID) rather than by any
-"desirability" heuristic — consistent with the planning decision not to add a quality/
-desirability scoring system for v1. This guarantees the same input always produces the same
-output, which is what actually prevents the result from *feeling* arbitrary — determinism and
-explainability, not a hidden taste model.
+When multiple item combinations achieve the identical minimum cost (Phase 1) or identical
+maximum value (Phase 2's "Sulit" objective, ADR 0001), break ties **deterministically** by a
+stable canonical item ordering (e.g. item ID) rather than by any additional "desirability"
+heuristic — consistent with the planning decision not to add a quality/desirability scoring
+system for v1. This guarantees the same input always produces the same output, which is what
+actually prevents the result from *feeling* arbitrary — determinism and explainability, not a
+hidden taste model. Note that "value" itself (`mainServings + carbServings`) is *not* such a
+scoring system — it's an objective count derived from data already in the item schema, not a
+subjective quality judgment; only tie-breaks *among* equal-value combinations avoid one.
 
 ---
 
@@ -222,3 +243,5 @@ explainability, not a hidden taste model.
 | 7 | Shakey's, feed-everyone | Pizza slices satisfy both main and carb per §3's dual-contribution modeling; revisit once real data confirms slice-per-box counts |
 | 8 | Dietary filter removes all "main" category items for a chain | Distinct from budget-infeasibility — the message shown must say "no matching items for your filters here," not "not enough budget," since the fix is different (change filters vs. raise budget or headcount) |
 | 9 | Two distinct item combinations tie at the same minimum cost | Same input always produces the same output (§7) |
+| 10 | `maximum-food` (the default, "Sulit") leftover budget, with both a zero-value item (drink) and a real-value item affordable | Never picks the zero-value item; fills leftover with the real-value item instead (ADR 0001) |
+| 11 | "Any chain," `maximum-food` mode, two chains where the cheaper one can't usefully spend its leftover and the pricier one can | Ranks by total value delivered, not cost — the pricier-but-higher-value chain wins (ADR 0001). Same two chains under `feed-everyone` still rank by cost, unaffected |

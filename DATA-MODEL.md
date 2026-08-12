@@ -1,4 +1,4 @@
-# Data Model — Tipid Hacks
+# Data Model — barato
 
 **Status:** Finalized schema, refined from the brief's original sketch during planning.
 

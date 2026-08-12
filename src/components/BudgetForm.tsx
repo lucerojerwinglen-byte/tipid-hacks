@@ -2,7 +2,7 @@ import type { SolverMode } from "../solver.js";
 
 const MODES: { value: SolverMode; label: string; hint: string }[] = [
   { value: "feed-everyone", label: "Feed Everyone", hint: "Cheapest way everyone gets a full meal" },
-  { value: "maximum-food", label: "Maximum Food", hint: "Spend the whole budget, everyone still gets fed" },
+  { value: "maximum-food", label: "Sulit", hint: "Pinaka sulit — max value para sa budget mo" },
   { value: "cheapest-possible", label: "Cheapest Possible", hint: "Lowest total spend, even if it can't cover everyone" },
 ];
 

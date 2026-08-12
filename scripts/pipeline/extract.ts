@@ -122,7 +122,7 @@ const OUTPUT_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-const SYSTEM_PROMPT = `You extract a structured menu-price list from raw fast-food menu page content for the Tipid Hacks project (DATA-MODEL.md schema).
+const SYSTEM_PROMPT = `You extract a structured menu-price list from raw fast-food menu page content for the barato project (DATA-MODEL.md schema).
 
 Rules:
 - Extract every priced, orderable menu item you can find. Skip navigation, footer, and unrelated marketing copy.

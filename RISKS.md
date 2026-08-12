@@ -1,4 +1,4 @@
-# Risk Register — Tipid Hacks
+# Risk Register — barato
 
 **Status:** Expanded from the brief's original 7-item table with findings from planning
 research. Ranked by (likelihood × how badly it defeats the project's stated purpose), highest

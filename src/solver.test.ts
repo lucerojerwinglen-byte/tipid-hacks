@@ -1,15 +1,17 @@
 // Covers SOLVER.md §8's test-case table. Cases 2-3 use the real Jollibee pipeline dataset —
 // their assertions are structural (feasible/greater-than/etc.), not tied to exact prices, so
-// they double as a live smoke test. Cases 1, 4-9 use small synthetic fixtures where a
+// they double as a live smoke test. Cases 1, 4-11 use small synthetic fixtures where a
 // targeted, controlled scenario proves the point more clearly than the full menu would; per
 // the planning brief, "the structural insight survives price drift even when exact numbers
 // are stale" — case 1 in particular pins the brief's own illustrative peso figures (₱69/₱80,
-// see DATA-MODEL.md §5), which real scraped pricing has no obligation to match.
+// see DATA-MODEL.md §5), which real scraped pricing has no obligation to match. Cases 10-11
+// cover ADR 0001 (docs/adr/0001-sulit-default-value-per-peso.md) — the "Sulit" value-per-peso
+// objective that replaced "maximum-food"'s old raw-item-count objective.
 
 import { describe, expect, it } from "vitest";
 import { jollibee } from "./data/jollibee.js";
-import { excludeTags, solve, computeNaiveBaseline } from "./solver.js";
-import type { Item } from "./types.js";
+import { excludeTags, solve, solveAnyChain, computeNaiveBaseline } from "./solver.js";
+import type { Chain, Item } from "./types.js";
 
 const jollibeeItems = jollibee.items;
 
@@ -211,17 +213,77 @@ describe("case 8: dietary filter removes all matching mains — distinct from bu
 });
 
 describe("phase 2 respects the per-item quantity cap (regression: Mang Inasal's 79x-rice bug)", () => {
-  // A very cheap item with no coverage contribution — exactly the shape that let the
-  // pre-fix version of maximizeLeftoverValue recommend dozens of copies of Mang Inasal's
-  // ₱5 unlimited-rice add-on (found while building Milestone 2, ROADMAP.md).
+  // A cheap item with real value (like Mang Inasal's unlimited rice) — exactly the shape that
+  // let the pre-fix version of maximizeLeftoverValue recommend dozens of copies (found while
+  // building Milestone 2, ROADMAP.md). Under the value-maximizing objective (ADR 0001) this is
+  // an even sharper trap than the old count objective: each copy is "worth" 10 value units for
+  // ₱1, not just +1 item, so an uncapped version would chase it even harder.
   const main = item({ id: "main", price: 100, category: "main", main_servings: 1, carb_servings: 1 });
-  const cheapExtra = item({ id: "cheap-extra", price: 1, category: "side" });
-  const items = [main, cheapExtra];
+  const cheapValueExtra = item({ id: "cheap-extra", price: 1, category: "rice", carb_servings: 10 });
+  const items = [main, cheapValueExtra];
 
   it("never suggests more than maxQtyFor(N) copies of a single bonus item", () => {
-    const result = solve(items, 1, 1000, "feed-everyone"); // huge leftover (₱900) at ₱1/unit
+    const result = solve(items, 1, 1000, "maximum-food"); // huge leftover (₱900) at ₱1/unit
     const cheapLine = result.bonusItems.find((i) => i.item.id === "cheap-extra");
     expect(cheapLine?.qty).toBeLessThanOrEqual(3); // maxQtyFor(1) = min(1+2, 12) = 3
+  });
+});
+
+describe("case 10: Sulit — maximum-food's leftover objective maximizes food value, not raw item count (ADR 0001)", () => {
+  const covering = item({ id: "covering", price: 50, category: "main", main_servings: 1, carb_servings: 1 });
+  // 0 main/carb servings, like every drink/dessert/side in the data model — cheaper per unit
+  // than extraMain, so the old count-maximizing objective would have preferred it.
+  const drink = item({ id: "drink", price: 10, category: "drink" });
+  const extraMain = item({ id: "extra-main", price: 20, category: "main", main_servings: 1, carb_servings: 0 });
+  const items = [covering, drink, extraMain];
+
+  it("never spends leftover on a zero-value item, even though it's cheaper per unit", () => {
+    const result = solve(items, 1, 90, "maximum-food"); // leftover = ₱40 after ₱50 coverage
+    const drinkLine = result.bonusItems.find((i) => i.item.id === "drink");
+    expect(drinkLine).toBeUndefined();
+  });
+
+  it("fills the leftover with the item that actually delivers food value instead", () => {
+    const result = solve(items, 1, 90, "maximum-food");
+    const extraLine = result.bonusItems.find((i) => i.item.id === "extra-main");
+    expect(extraLine?.qty).toBe(2); // floor(40/20) = 2, within maxQtyFor(1) = 3
+    expect(result.totalValue).toBe(4); // covering (1+1) + 2x extraMain (1 each)
+  });
+});
+
+describe("case 11: any-chain ranking follows the selected mode's own objective (ADR 0001)", () => {
+  function chain(id: string, name: string, items: Item[]): { chain: Chain; items: Item[] } {
+    return {
+      chain: { id, name, source_url: "", source_type: "official", last_updated: "2026-01-01" },
+      items,
+    };
+  }
+
+  // Chain A: cheap-ish coverage, but its only leftover-fill item is a zero-value drink — never
+  // bought — and its leftover (₱80) is too small to afford a second covering item (₱120), so
+  // its leftover budget goes entirely unspent and its total cost stays low.
+  const chainA = chain("chain-a", "Chain A", [
+    item({ id: "a-covering", price: 120, category: "main", main_servings: 1, carb_servings: 1 }),
+    item({ id: "a-drink", price: 10, category: "drink" }),
+  ]);
+  // Chain B: pricier coverage, but its leftover-fill item delivers real value, so it fully
+  // spends the budget and ends up delivering more total food value than Chain A.
+  const chainB = chain("chain-b", "Chain B", [
+    item({ id: "b-covering", price: 150, category: "main", main_servings: 1, carb_servings: 1 }),
+    item({ id: "b-extra", price: 25, category: "main", main_servings: 1, carb_servings: 0 }),
+  ]);
+  const chains = [chainA, chainB];
+
+  it("maximum-food (the default, Sulit): ranks by total value delivered — B wins despite costing more", () => {
+    const { winner } = solveAnyChain(chains, 1, 200, "maximum-food");
+    expect(winner.chain.id).toBe("chain-b");
+    expect(winner.result.totalCost).toBe(200); // fully spent
+    expect(winner.result.totalValue).toBe(4); // (1+1) coverage + 2x b-extra(1 each)
+  });
+
+  it("feed-everyone: still ranks by lowest cost, unaffected by the value-ranking change", () => {
+    const { winner } = solveAnyChain(chains, 1, 200, "feed-everyone");
+    expect(winner.chain.id).toBe("chain-a"); // ₱100 coverage beats Chain B's ₱150
   });
 });
 

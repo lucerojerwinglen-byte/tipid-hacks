@@ -21,8 +21,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "apple-touch-icon.png"],
       manifest: {
-        name: "Tipid Hacks — Fast Food Budget Optimizer",
-        short_name: "Tipid Hacks",
+        name: "barato — Fast Food Budget Optimizer",
+        short_name: "barato",
         description: "Find the cheapest fast-food order that feeds your group in the Philippines.",
         theme_color: "#1f7a5c",
         background_color: "#f1ece0",

@@ -1,4 +1,4 @@
-# Roadmap — Tipid Hacks
+# Roadmap — barato
 
 **Status:** Sized against Jerwin's stated time budget (10+ hrs/week — can absorb bigger
 milestones without stalling). Ordered so the riskiest, most novel part (the solver) is proven

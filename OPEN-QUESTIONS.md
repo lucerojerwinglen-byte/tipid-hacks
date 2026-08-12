@@ -1,4 +1,4 @@
-# Open Questions — Tipid Hacks
+# Open Questions — barato
 
 **Status:** None of these block starting the build (Milestone 0 in ROADMAP.md needs none of
 them resolved). Listed so they don't get silently forgotten.

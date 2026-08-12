@@ -1,4 +1,4 @@
-# Data Pipeline — Tipid Hacks
+# Data Pipeline — barato
 
 **Status:** Sources verified for all six chains via live fetches during planning (Aug 2026).
 **Core principle carried through every decision below:** silent auto-updating of bad data is

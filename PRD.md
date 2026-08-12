@@ -1,4 +1,4 @@
-# Product Requirements Document — Tipid Hacks
+# Product Requirements Document — barato
 
 **Status:** Approved for build
 **Author:** Jerwin, with Claude Code (planning session)
@@ -79,8 +79,10 @@ creation).
 - Share result as an image — this is how it spreads in the Philippines, via group chats
 - Tagalog / English toggle
 - Simple dietary filters (no pork, no beef, no spicy)
-- Solver modes: "feed everyone" (default) vs "maximum food" vs "cheapest possible" — see
-  SOLVER.md for exact semantics
+- Solver modes: "maximum food" — labeled **"Sulit"** in the UI, and the **default** (ADR 0001,
+  docs/adr/0001-sulit-default-value-per-peso.md) — vs "feed everyone" vs "cheapest possible".
+  The default optimizes for best value per peso (most food value for the budget), not lowest
+  price — see SOLVER.md and CONTEXT.md's `Sulit`/`Mura` glossary entries for exact semantics.
 
 ### Could have (later)
 
@@ -120,11 +122,15 @@ solver-design diversity, not pure market share:
 
 ## 6. Solver behavior (product-level summary — full formulation in SOLVER.md)
 
-- Every person gets ≥1 main + ≥1 carbohydrate/rice portion by default ("feed everyone" mode).
-- No explicit quality/desirability floor beyond category tagging — the solver can pick the
-  cheapest qualifying main. Revisit only if real usage shows this feels bad.
-- If budget × headcount makes "feed everyone" infeasible, the app says so honestly and
-  auto-offers the "cheapest possible" answer instead of a dead end.
+- Every person gets ≥1 main + ≥1 carbohydrate/rice portion — this coverage requirement holds
+  regardless of mode; what differs by mode is what happens with money left over after coverage.
+- The default mode ("Sulit"/`maximum-food`) spends the leftover on whichever items deliver the
+  most food value per peso, not on whichever items are individually cheapest (ADR 0001) — no
+  explicit quality/desirability floor beyond category tagging is needed on top of that, since
+  "value" here is an objective count (main + carb servings), not a taste judgment. Revisit only
+  if real usage shows this feels bad.
+- If budget × headcount makes coverage infeasible at all (any mode), the app says so honestly
+  and auto-offers the "cheapest possible" answer instead of a dead end.
 - "Any chain" never mixes items across chains in one order — it solves per chain and shows the
   winner plus runners-up.
 

@@ -9,7 +9,7 @@
 import { get, set } from "idb-keyval";
 import type { ChainData } from "./types.js";
 
-const CACHE_KEY = "tipid-hacks:price-snapshot";
+const CACHE_KEY = "barato:price-snapshot";
 
 export interface PriceSnapshot {
   chains: ChainData[];

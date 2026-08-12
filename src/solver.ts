@@ -22,6 +22,13 @@ export interface SolveResult {
   /** Phase-2 additions. For feed-everyone this is a suggestion, not included in totalCost. For maximum-food it IS included. */
   bonusItems: ItemQty[];
   totalCost: number;
+  /**
+   * Total food value (main_servings + carb_servings) delivered by the order — the "Sulit"
+   * metric (CONTEXT.md, ADR 0001). Includes bonusItems only when mode is "maximum-food",
+   * mirroring totalCost's own inclusion rule. Drinks/desserts/sides contribute 0 by
+   * construction (0 main/carb servings), so they never inflate this figure.
+   */
+  totalValue: number;
   budget: number;
   leftover: number;
   /** Cheapest single-person full-coverage option x N — see DATA-MODEL.md §3. Null if no item can cover even one person. */
@@ -108,13 +115,21 @@ export function reconstructCoverage(
 }
 
 /**
- * SOLVER.md §4, Phase 2: maximize total item count within a leftover budget.
+ * SOLVER.md §4, Phase 2: maximize total food value (main_servings + carb_servings delivered)
+ * within a leftover budget — the "Sulit" objective (CONTEXT.md, ADR 0001). Prior to ADR 0001
+ * this maximized raw item *count* instead; that made "maximum-food" synonymous with "spend on
+ * whatever's cheapest per unit," which is a "mura" (cheap) objective wearing a "sulit" name.
+ * Weighting each unit by its actual food value fixes that: an item with 0 main/carb servings
+ * (drinks, desserts, sides — see DATA-MODEL.md) contributes 0 value no matter how cheap it is,
+ * so it is never chosen to fill leftover budget, by construction.
  *
- * Bounded per item at maxQtyFor(N) (SOLVER.md §3) — without this, a very cheap item (e.g.
- * Mang Inasal's ₱5 unlimited-rice add-on) lets a naive unbounded knapsack "maximize count" by
- * recommending dozens of copies of it, which is nonsense as a suggestion. Caught while
- * building Milestone 2 (ROADMAP.md) against real chain data — Jollibee's smaller leftover
- * budgets never hit this, Mang Inasal's near-zero-price item did immediately.
+ * Bounded per item at maxQtyFor(N) (SOLVER.md §3) — without this, a very cheap item with real
+ * value (e.g. Mang Inasal's ₱5 unlimited-rice add-on, worth 10 carb_servings per unit) lets a
+ * naive unbounded knapsack recommend dozens of copies of it, which is nonsense as a suggestion
+ * — and is an even sharper trap under the value objective than under the old count objective,
+ * since each copy is "worth" 10x as much. Caught while building Milestone 2 (ROADMAP.md)
+ * against real chain data — Jollibee's smaller leftover budgets never hit this, Mang Inasal's
+ * near-zero-price item did immediately.
  *
  * Each item is capped at `maxQty` via the textbook bounded-knapsack DP: item-indexed layers
  * `dp[i][c]`, each explicitly trying every quantity `0..maxQty` of item `i` and recording
@@ -140,6 +155,7 @@ export function maximizeLeftoverValue(items: Item[], leftoverBudget: number, N: 
 
   for (let i = 1; i <= n; i++) {
     const item = available[i - 1]!;
+    const itemValue = item.main_servings + item.carb_servings;
     const prevLayer = dp[i - 1]!;
     const maxAffordableAt = (c: number) =>
       item.price > 0 ? Math.min(maxQty, Math.floor(c / item.price)) : 0;
@@ -148,7 +164,7 @@ export function maximizeLeftoverValue(items: Item[], leftoverBudget: number, N: 
       let best = prevLayer[c]!;
       let bestQ = 0;
       for (let q = 1; q <= maxAffordableAt(c); q++) {
-        const candidate = prevLayer[c - q * item.price]! + q;
+        const candidate = prevLayer[c - q * item.price]! + q * itemValue;
         if (candidate > best) {
           best = candidate;
           bestQ = q;
@@ -182,6 +198,11 @@ export function largestFeasibleCoverage(dp: number[][], N: number, budget: numbe
 
 function sumCost(itemQtys: ItemQty[]): number {
   return itemQtys.reduce((sum, { item, qty }) => sum + item.price * qty, 0);
+}
+
+/** Total food value (main_servings + carb_servings) across an item list — the "Sulit" metric. */
+function sumValue(itemQtys: ItemQty[]): number {
+  return itemQtys.reduce((sum, { item, qty }) => sum + (item.main_servings + item.carb_servings) * qty, 0);
 }
 
 /**
@@ -226,6 +247,7 @@ export function solve(items: Item[], N: number, budget: number, mode: SolverMode
       coverageItems,
       bonusItems: [],
       totalCost: cost,
+      totalValue: sumValue(coverageItems),
       budget,
       leftover: budget - cost,
       naiveBaselineCost,
@@ -250,6 +272,9 @@ export function solve(items: Item[], N: number, budget: number, mode: SolverMode
   // SOLVER.md §4: feed-everyone and maximum-food share the same computation; only the
   // presentation differs — maximum-food actually spends phase 2, feed-everyone offers it.
   const totalCost = mode === "maximum-food" ? minCost + bonusCost : minCost;
+  // Mirrors totalCost's inclusion rule: maximum-food's headline value includes what phase 2
+  // actually bought; feed-everyone's is coverage-only since phase 2 is only a suggestion there.
+  const totalValue = mode === "maximum-food" ? sumValue(coverageItems) + sumValue(bonusItems) : sumValue(coverageItems);
 
   return {
     mode,
@@ -260,6 +285,7 @@ export function solve(items: Item[], N: number, budget: number, mode: SolverMode
     coverageItems,
     bonusItems,
     totalCost,
+    totalValue,
     budget,
     leftover: budget - totalCost,
     naiveBaselineCost,
@@ -279,11 +305,16 @@ export interface ChainSolveResult {
 }
 
 /**
- * SOLVER.md §5: no cross-chain mixing. Solves each chain independently and ranks them —
- * fully-feasible chains first (cheapest total wins), infeasible chains after (most people
- * covered wins, cost breaks ties) so a group that can't be fully fed anywhere still sees the
- * closest honest answer rather than nothing. Returns the winner plus up to 2 runners-up so
- * the UI can show *why* the winner won (PRD.md §9's trust-building "any chain" behavior).
+ * SOLVER.md §5: no cross-chain mixing. Solves each chain independently and ranks them by the
+ * *requested mode's own objective* — for "maximum-food" (the default, "Sulit" — CONTEXT.md, ADR
+ * 0001) that's highest total value delivered, not lowest cost, since that mode always spends
+ * the full budget when feasible and cost stops being a meaningful differentiator. For
+ * "feed-everyone" and "cheapest-possible" — modes that are explicitly about minimizing spend —
+ * ranking stays cost-based, unchanged by ADR 0001. Infeasible chains rank after feasible ones
+ * (most people covered wins, cost breaks ties) so a group that can't be fully fed anywhere
+ * still sees the closest honest answer rather than nothing. Returns the winner plus up to 2
+ * runners-up so the UI can show *why* the winner won (PRD.md §9's trust-building "any chain"
+ * behavior).
  */
 export function solveAnyChain(
   chains: ChainData[],
@@ -301,7 +332,10 @@ export function solveAnyChain(
     }))
     .sort((a, b) => {
       if (a.result.feasible !== b.result.feasible) return a.result.feasible ? -1 : 1;
-      if (a.result.feasible) return a.result.totalCost - b.result.totalCost;
+      if (a.result.feasible) {
+        if (mode === "maximum-food") return b.result.totalValue - a.result.totalValue;
+        return a.result.totalCost - b.result.totalCost;
+      }
       if (a.result.peopleCovered !== b.result.peopleCovered) {
         return b.result.peopleCovered - a.result.peopleCovered;
       }

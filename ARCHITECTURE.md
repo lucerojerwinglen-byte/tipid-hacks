@@ -1,4 +1,4 @@
-# Architecture — Tipid Hacks
+# Architecture — barato
 
 **Status:** Decided, backed by live research (Aug 2026)
 

@@ -37,7 +37,7 @@ function printResult(label: string, result: SolveResult) {
 }
 
 console.log("=".repeat(60));
-console.log("Tipid Hacks — Milestone 0: solver proof of concept");
+console.log("barato — Milestone 0: solver proof of concept");
 console.log("=".repeat(60));
 
 // The brief's own worked example (PRD.md §2): ₱300, 4 people, Jollibee.
