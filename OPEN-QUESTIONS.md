@@ -7,15 +7,6 @@ them resolved). Listed so they don't get silently forgotten.
 
 ## Data / legal verification still needed
 
-- **Chowking's delivery-app ToS and Shakey's `/legal-terms` couldn't be machine-read** (both
-  render via JavaScript) — no anti-scraping clause was found for any of the six chains in the
-  text that *could* be read, but this is a "not found" not a confirmed "absent." **Resolves
-  by:** one manual human read of each before that chain goes live in the pipeline
-  (ROADMAP.md Milestone 4/5).
-- **Dine-in vs. takeout price parity was assumed, not verified per chain.** Planning concluded
-  PH fast-food chains don't split-price these at the counter, but this wasn't checked
-  chain-by-chain. **Resolves by:** a quick check during Milestone 4/5 build, flagging any
-  chain that turns out to be an exception.
 - **Whether Jollibee or McDonald's PH corporate would grant legitimate API/data access if
   asked directly** was floated during planning as a low-cost, high-value long shot (one email,
   no downside) but never sent. **Resolves by:** Jerwin deciding whether to actually send it —
@@ -79,8 +70,30 @@ them resolved). Listed so they don't get silently forgotten.
   option** (RISKS.md #2) was recommended but has no concrete reminder mechanism.
   **Resolves by:** Jerwin deciding whether to calendar this or just fold it into the monthly
   Jollibee/McDonald's price spot-check already planned (DATA-PIPELINE.md §6).
-- **Whether a third-party source going fully unreachable (not just wrong-looking) is
-  guaranteed to trigger the same GitHub-issue alert as a sanity-rule failure** — implied by
-  "a fetch failure is itself a failure," but not explicitly built or tested.
-  **Resolves by:** an explicit test case during Milestone 4 (point the fetcher at a dead URL,
-  confirm an alert fires).
+
+## Resolved
+
+- **Chowking delivery-app ToS and Shakey's `/legal-terms` — read 2026-08-12.** Chowking:
+  `chowking.ph/terms-and-conditions` turned out to *be* the delivery/app ToS (its own title is
+  "TERMS AND CONDITIONS FOR THE CHOWKING DELIVERY WEBSITE AND APP," explicitly covering
+  `chowkingdelivery.com`, the App, and both Delivery and Pick-Up) and is plain server-rendered
+  HTML — no separate JS-rendered page needed reading after all. Shakey's `/legal-terms` is a
+  client-rendered Next.js shell (empty in raw HTML) but its full text was retrieved by
+  rendering the page with Playwright (already a project dependency for Milestone 5) and
+  clicking through to the "Terms and Conditions" tab. **Neither ToS contains any clause
+  addressing scraping, crawlers, bots, automated access, or data mining** — see
+  DATA-PIPELINE.md §1 for the updated per-chain notes.
+- **Dine-in vs. takeout price parity — checked 2026-08-12** across all six chains' public
+  pages (the three Milestone 4 source pages plus a quick look at KFC/Chowking/Shakey's own
+  sites ahead of Milestone 5). No chain shows a separate dine-in vs. takeout price anywhere.
+  Mang Inasal's own official price table is the clearest confirmation — its price column
+  header is literally "DINE-IN / TAKEOUT" as one combined price, not two. No exception found;
+  the planning assumption holds.
+- **Fetch failure → alert path — test added 2026-08-12** (`scripts/pipeline/fetch.test.ts`).
+  The actual GitHub-issue alert is still Milestone 6 (GitHub Actions doesn't exist yet in this
+  repo) — what's confirmed now is the signal that alert will hook into: `fetchRaw` throws on
+  both a fully unreachable host and a non-OK HTTP response, and that throw propagates
+  unhandled out of `runChain` exactly like a `validate.ts` sanity-rule failure does, so
+  `scripts/run-pipeline.ts`'s per-chain `try/catch` records both as status `"blocked"` and
+  exits non-zero. A dead source and a bad-data source are indistinguishable to anything
+  watching the process exit code — which is what Milestone 6's alert step will watch.

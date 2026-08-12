@@ -14,8 +14,8 @@ the worst possible failure mode. Wrong-but-confident is worse than stale-but-hon
 | **McDonald's PH** | `mcdomenuprices.com.ph` (third-party) | Plain HTTP fetch | McDonald's own ordering domain (`mcdelivery.com.ph`) is a JS SPA with its ordering path explicitly `Disallow`'d in robots.txt and gated behind login/store selection. The third-party site is the same shape as Jollibee's: plain HTML, prices embedded, open robots.txt, explicit non-affiliation disclaimer, last updated Jul 2026 (~3 weeks old at time of writing). |
 | **Mang Inasal** | `manginasal.ph/news/menu-and-prices` (official) | Plain HTTP fetch | The standout case — a full price table in plain server-rendered HTML on the chain's own site. Open robots.txt (only blocks `/wp-admin/`). Caveat: it's a manually-curated marketing page, not a live per-branch feed, so treat it like any other source and run it through the same sanity checks. |
 | **KFC PH** | `kfc.com.ph` (official) | Playwright (headless) | Most permissive robots.txt of the six official sites (`Allow: /` for everything), no bot-wall encountered, no anti-scraping ToS clause — but it's a JS single-page app, so prices aren't present in the raw HTML and require a rendered page (or captured XHR calls). |
-| **Chowking** | `chowkingdelivery.com` (official) | Playwright (headless) | Delivery subdomain's robots.txt is fully open (`Allow: /`), no bot-wall hit — but JS-rendered, same as KFC. The general `chowking.ph` site's ToS was readable and had no anti-scraping clause; the delivery subdomain's own ToS page is itself JS-rendered and its exact text should get one manual human read before this chain goes live in the pipeline, to close that gap. |
-| **Shakey's** | `shakeyspizza.ph` (official) | Playwright (headless) | Confirmed during planning that individual product pages do not server-render price data (empty shell, no price tokens in raw HTML) — needs the same headless treatment as KFC/Chowking. No `robots.txt` file exists at all for this domain (404), which is unusual for a commercial site and is treated as default-allow, not as a green light to skip a manual ToS read before launch. |
+| **Chowking** | `chowkingdelivery.com` (official) | Playwright (headless) | Delivery subdomain's robots.txt is fully open (`Allow: /`), no bot-wall hit — but JS-rendered, same as KFC. ToS confirmed 2026-08-12: `chowking.ph/terms-and-conditions` is titled "TERMS AND CONDITIONS FOR THE CHOWKING DELIVERY WEBSITE AND APP" and explicitly covers `chowkingdelivery.com`/the App/Delivery/Pick-Up — it *is* the delivery ToS, just plain server-rendered HTML rather than JS-rendered. No anti-scraping clause. |
+| **Shakey's** | `shakeyspizza.ph` (official) | Playwright (headless) | Confirmed during planning that individual product pages do not server-render price data (empty shell, no price tokens in raw HTML) — needs the same headless treatment as KFC/Chowking. No `robots.txt` file exists at all for this domain (404), which is unusual for a commercial site but is treated as default-allow. ToS confirmed 2026-08-12 by rendering `/legal-terms` with Playwright (the JS shell doesn't serve it raw): full text has no anti-scraping clause. |
 
 Every chain that has a live ordering/delivery flow ties real pricing to a store/branch or
 delivery-address selection — none of them expose a single canonical "national" price list from
@@ -23,10 +23,11 @@ their live systems. The pipeline picks one representative reference (Metro Manil
 DATA-MODEL.md) rather than attempting per-branch pricing.
 
 **Before any chain goes live in the pipeline:** do one manual human read of that chain's
-current ToS. The retrievable text found during planning contained no explicit anti-scraping
-clause for any of the six, but two ToS pages (Chowking's delivery app, Shakey's `/legal-terms`)
-render via JavaScript and their exact text could not be machine-verified — "not found" is being
-reported here, not a confirmed "absent."
+current ToS. Done for all six as of 2026-08-12 — no explicit anti-scraping clause found in any
+of them. The two pages that render via JavaScript (Chowking's delivery ToS — which turned out
+to live at the plain-HTML `chowking.ph/terms-and-conditions` after all — and Shakey's
+`/legal-terms`, read by rendering it with Playwright) needed more than a plain fetch to verify,
+but both have now actually been read, not just "not found."
 
 **Ruled out entirely, not just deprioritized:** attempting to bypass Jollibee's bot protection
 to reach official pricing. That crosses from "scraping a public page" into "circumventing
