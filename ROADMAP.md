@@ -95,7 +95,30 @@ blocked, not silently merged.
 - Confirm feasibility inside GitHub Actions (DATA-PIPELINE.md §5) with a real CI run, not just
   local testing.
 
-**Done when:** all six chains run through the same pipeline, locally triggered.
+**Status: KFC and Shakey's wired and hand-tested for real; Chowking deferred.** Building this
+for real (not just against the planning-time assumptions) surfaced three corrections, all
+captured in DATA-PIPELINE.md §1:
+
+- **KFC**'s homepage doesn't carry prices at all — the real fetch target is `/en/menu`.
+- **Shakey's** has no single "all items" page that renders; its catalog is 11 separate
+  category pages, fetched in one shared Playwright session and joined
+  (`fetch_urls`/`fetchRenderedMulti`).
+- **Chowking**'s pricing lives behind a Cloudflare-gated JSON API that a real headless-browser
+  session only triggers inconsistently and that direct calls get 403'd on — the same shape as
+  Jollibee's already-ruled-out official domain, and ruled out for the same reason (§1). It stays
+  on hand-maintained data (`src/data/chowking.ts`) rather than becoming a maintenance trap or a
+  bot-protection arms race.
+- Along the way, running KFC's real (denser) menu through the Milestone-4 extraction pipeline
+  also surfaced two latent bugs in it, now fixed: Groq's TPM rate limit can reject a request
+  outright (HTTP 413) rather than only 429 after acceptance, and the fixed `CHUNK_CHAR_LIMIT`
+  tuned against Milestone 4's sparser pages let too many items land in one chunk, overflowing
+  `MAX_COMPLETION_TOKENS` (scripts/pipeline/extract.ts).
+
+**Done when:** KFC and Shakey's run through the same pipeline as Milestone 4, confirmed locally;
+`.github/workflows/pipeline.yml` (`workflow_dispatch`) exists and is ready to prove the same in
+CI, but that first real Actions run is still pending (not yet pushed/triggered). Chowking is
+explicitly out of scope for automation — see DATA-PIPELINE.md §1/§6 — so "all six chains
+automated" is not this milestone's bar; five automated plus one consciously deferred is.
 
 ## Milestone 6 — Automation and alerting
 

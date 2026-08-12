@@ -2,7 +2,7 @@
 // see DATA-PIPELINE.md §4), used here specifically because it's resilient to page-layout
 // redesigns in a way CSS-selector scraping isn't.
 
-import Groq, { RateLimitError } from "groq-sdk";
+import Groq, { APIError, RateLimitError } from "groq-sdk";
 import { z } from "zod";
 import type { ExtractedItem, ExtractionResult } from "./types.js";
 
@@ -19,7 +19,13 @@ const MODEL = "openai/gpt-oss-120b";
 // of output tokens) blows straight through it. Chunking the input keeps each request's
 // input + max_completion_tokens comfortably under MODEL's 8,000 TPM limit.
 const MAX_COMPLETION_TOKENS = 6000;
-const CHUNK_CHAR_LIMIT = 3000;
+// 3000 was tuned against Milestone 4's third-party menu pages, which pad each item with
+// descriptive text. KFC's official menu (Milestone 5) is far denser — mostly bare
+// "NAME\n₱PRICE" lines — so a 3000-char chunk there can hold 40+ items, and the JSON needed to
+// represent all of them no longer fits in MAX_COMPLETION_TOKENS (finish_reason "length",
+// discovered running the real Milestone-5 pipeline). A smaller char limit bounds items-per-chunk
+// directly, which is what actually drives output size, not input size.
+const CHUNK_CHAR_LIMIT = 1200;
 
 const CATEGORIES = ["main", "rice", "side", "drink", "dessert", "combo"] as const;
 
@@ -156,6 +162,18 @@ function chunkText(text: string): string[] {
   return chunks;
 }
 
+/**
+ * Groq's free-tier TPM budget (DATA-PIPELINE.md §1's Playwright chains push more chunks per
+ * chain than Milestone 4's did) can be exceeded two ways: the SDK's typed RateLimitError (HTTP
+ * 429, hit *after* a request is accepted) or a plain APIError carrying HTTP 413 with body code
+ * "rate_limit_exceeded" (rejected before it's even queued, because the estimated request alone
+ * would exceed the per-minute budget). Both mean the same thing operationally — wait, retry —
+ * so both get the same backoff instead of only the 429 shape.
+ */
+function isRateLimited(err: unknown): err is APIError {
+  return err instanceof RateLimitError || (err instanceof APIError && (err as { error?: { code?: string } }).error?.code === "rate_limit_exceeded");
+}
+
 async function extractChunk(client: Groq, chunkText: string, label: string): Promise<ExtractedItem[]> {
   // Streamed, not a single non-streaming call: a chunk's worth of structured JSON can still
   // run long enough to risk an HTTP timeout on a non-streaming call.
@@ -187,11 +205,21 @@ async function extractChunk(client: Groq, chunkText: string, label: string): Pro
   try {
     stream = await createStream();
   } catch (err) {
-    if (err instanceof RateLimitError) {
+    if (isRateLimited(err)) {
       const retryAfterSeconds = Number(err.headers?.get("retry-after")) || 20;
       console.log(`  Rate limited on ${label}, waiting ${retryAfterSeconds}s before retrying...`);
       await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
-      stream = await createStream();
+      try {
+        stream = await createStream();
+      } catch (retryErr) {
+        if (!isRateLimited(retryErr)) throw retryErr;
+        // Still limited (a chain with many chunks, e.g. Shakey's 11-page fetch, can outpace a
+        // single retry) — one more wait, doubled, then give up rather than retry forever.
+        const secondRetryAfterSeconds = Number(retryErr.headers?.get("retry-after")) || retryAfterSeconds * 2;
+        console.log(`  Still rate limited on ${label}, waiting ${secondRetryAfterSeconds}s before final retry...`);
+        await new Promise((resolve) => setTimeout(resolve, secondRetryAfterSeconds * 1000));
+        stream = await createStream();
+      }
     } else {
       throw err;
     }

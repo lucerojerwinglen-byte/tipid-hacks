@@ -1,4 +1,4 @@
-// Milestone 4 (ROADMAP.md): types for the fetch -> LLM parse -> validate -> diff -> commit
+// Milestones 4-5 (ROADMAP.md): types for the fetch -> LLM parse -> validate -> diff -> commit
 // pipeline described in DATA-PIPELINE.md. Deliberately separate from src/types.ts — these
 // are pipeline-internal shapes (pre-id-generation, pre-merge), not the app's data model.
 
@@ -30,6 +30,16 @@ export interface PipelineSource {
   chain_name: string;
   source_url: string;
   source_type: "official" | "third-party-aggregator";
+  /** "http" for server-rendered pages (Milestone 4); "playwright" for JS-rendered SPAs needing
+   * headless-browser rendering before prices appear in the DOM (Milestone 5, DATA-PIPELINE.md §1). */
+  fetch_method: "http" | "playwright";
+  /**
+   * Only set when fetch_method is "playwright" and a single page doesn't cover the catalog
+   * (Shakey's — DATA-PIPELINE.md §1: its `/catalog/categories/all` page never actually renders
+   * items, only per-category pages do). When present, run.ts renders every url and joins them
+   * before checksum/extraction; source_url stays the human-facing "where this comes from" link.
+   */
+  fetch_urls?: string[];
   /** Short id prefix matching the hand-typed convention (e.g. "jb", "mc", "mi"). */
   id_prefix: string;
   /** The `export const <name>` identifier in src/data/<chain_id>.ts (e.g. "mangInasal"). */

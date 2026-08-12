@@ -1,0 +1,70 @@
+name: Data pipeline (manual)
+
+# Milestone 5 (ROADMAP.md): confirms Playwright is feasible on a GitHub Actions runner
+# (DATA-PIPELINE.md §5), not just on Jerwin's own machine. Manual-only (workflow_dispatch) —
+# the weekly unattended cron + auto-alert-on-failure is deliberately Milestone 6's job, not
+# this one. Requires a GROQ_API_KEY repository secret (console.groq.com/keys, free tier —
+# DATA-PIPELINE.md §4); the workflow fails fast in the "Run pipeline" step if it's missing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chains:
+        description: "Space-separated chain ids to run (blank = every wired chain — see scripts/pipeline/sources.ts). Chowking isn't wired; DATA-PIPELINE.md §1."
+        required: false
+        default: ""
+      commit:
+        description: "Commit + push updated src/data/*.ts back to this branch (unchecked = dry run, output uploaded as an artifact instead)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright's Chromium (KFC + Shakey's need it; the other 3 wired chains are plain HTTP)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run pipeline
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GROQ_API_KEY:-}" ]; then
+            echo "::error::GROQ_API_KEY repo secret is not set (Settings > Secrets and variables > Actions). See DATA-PIPELINE.md §4."
+            exit 1
+          fi
+          if [ "${{ inputs.commit }}" = "true" ]; then
+            git config user.name "barato-pipeline[bot]"
+            git config user.email "barato-pipeline[bot]@users.noreply.github.com"
+            npm run pipeline -- ${{ inputs.chains }}
+          else
+            npm run pipeline -- ${{ inputs.chains }} --no-commit
+          fi
+
+      - name: Push updated data
+        if: ${{ inputs.commit == 'true' }}
+        run: git push
+
+      - name: Upload pipeline output (dry run only — nothing was committed)
+        if: ${{ inputs.commit != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-output
+          path: |
+            src/data/*.ts
+            data/checksums.json
+          retention-days: 14

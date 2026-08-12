@@ -1,6 +1,9 @@
 # Data Pipeline — barato
 
 **Status:** Sources verified for all six chains via live fetches during planning (Aug 2026).
+Milestone 5 (ROADMAP.md) then wired and hand-tested KFC and Shakey's for real, and that testing
+corrected two of this document's planning-time assumptions — see the KFC/Shakey's/Chowking rows
+in §1 for what actually shipped vs. what was originally assumed.
 **Core principle carried through every decision below:** silent auto-updating of bad data is
 the worst possible failure mode. Wrong-but-confident is worse than stale-but-honest.
 
@@ -13,9 +16,9 @@ the worst possible failure mode. Wrong-but-confident is worse than stale-but-hon
 | **Jollibee** | `jollibeemenuprice.net` (third-party) | Plain HTTP fetch | Jollibee's own ordering domain (`order.jollibee.com`) returned HTTP 403 with bot-protection signatures, requires login + store selection, and its path is not disallowed but is practically unreachable without circumventing bot protection — ruled out entirely during planning. The third-party site is a plain server-rendered WordPress page, prices embedded directly in HTML, robots.txt only blocks `/wp-admin/`, explicit "not affiliated with Jollibee" disclaimer, no anti-scraping clause, last updated Apr 2026. |
 | **McDonald's PH** | `mcdomenuprices.com.ph` (third-party) | Plain HTTP fetch | McDonald's own ordering domain (`mcdelivery.com.ph`) is a JS SPA with its ordering path explicitly `Disallow`'d in robots.txt and gated behind login/store selection. The third-party site is the same shape as Jollibee's: plain HTML, prices embedded, open robots.txt, explicit non-affiliation disclaimer, last updated Jul 2026 (~3 weeks old at time of writing). |
 | **Mang Inasal** | `manginasal.ph/news/menu-and-prices` (official) | Plain HTTP fetch | The standout case — a full price table in plain server-rendered HTML on the chain's own site. Open robots.txt (only blocks `/wp-admin/`). Caveat: it's a manually-curated marketing page, not a live per-branch feed, so treat it like any other source and run it through the same sanity checks. |
-| **KFC PH** | `kfc.com.ph` (official) | Playwright (headless) | Most permissive robots.txt of the six official sites (`Allow: /` for everything), no bot-wall encountered, no anti-scraping ToS clause — but it's a JS single-page app, so prices aren't present in the raw HTML and require a rendered page (or captured XHR calls). |
-| **Chowking** | `chowkingdelivery.com` (official) | Playwright (headless) | Delivery subdomain's robots.txt is fully open (`Allow: /`), no bot-wall hit — but JS-rendered, same as KFC. ToS confirmed 2026-08-12: `chowking.ph/terms-and-conditions` is titled "TERMS AND CONDITIONS FOR THE CHOWKING DELIVERY WEBSITE AND APP" and explicitly covers `chowkingdelivery.com`/the App/Delivery/Pick-Up — it *is* the delivery ToS, just plain server-rendered HTML rather than JS-rendered. No anti-scraping clause. |
-| **Shakey's** | `shakeyspizza.ph` (official) | Playwright (headless) | Confirmed during planning that individual product pages do not server-render price data (empty shell, no price tokens in raw HTML) — needs the same headless treatment as KFC/Chowking. No `robots.txt` file exists at all for this domain (404), which is unusual for a commercial site but is treated as default-allow. ToS confirmed 2026-08-12 by rendering `/legal-terms` with Playwright (the JS shell doesn't serve it raw): full text has no anti-scraping clause. |
+| **KFC PH** | `kfc.com.ph/en/menu` (official) | Playwright (headless) | Most permissive robots.txt of the six official sites (`Allow: /` for everything), no bot-wall encountered, no anti-scraping ToS clause. **Milestone 5 correction:** the homepage (`kfc.com.ph/`) itself is a bare landing shell with no prices at all — "OUR MENU" resolves client-side to `/en/menu`, and *that* URL is what actually renders the priced catalog once Playwright waits for it. `source_url` was updated to point at the real page (scripts/pipeline/sources.ts). |
+| **Chowking** | `chowkingdelivery.com` (official) | **Deferred — hand-maintained** (`src/data/chowking.ts`) | **Milestone 5 correction, supersedes the planning-time assessment below.** The page shell itself loads fine (no bot-wall on the HTML), but its price data comes from a separate JSON API (`api.chowkingdelivery.com/mobilem8-menu-service/.../v2/menu`) that sits behind Cloudflare: calling it directly (or via Playwright's own request context, which isn't routed through the real browser network stack) returns an HTTP 403 Cloudflare challenge page, and even a full headless-browser session only triggers that call inconsistently — clicking through "Start New Order" repeatedly produced a blank `/menu` route with no further API activity. This is the same shape as Jollibee's ruled-out official domain (§1, "Ruled out entirely" below): routing around Cloudflare would cross from scraping a public page into circumventing access controls, which this project has already decided against for exactly this reason. Chowking stays on hand-maintained data (the manual-override mechanism's designed fallback role, §2) until/unless a legitimate public API surface turns up. |
+| **Shakey's** | `shakeyspizza.ph/catalog/categories/<id>` ×11 (official) | Playwright (headless), multi-page | No `robots.txt` file exists at all for this domain (404), treated as default-allow; ToS confirmed 2026-08-12 (`/legal-terms`, rendered via Playwright) with no anti-scraping clause. **Milestone 5 correction:** planning assumed one JS-rendered page per chain, but Shakey's `/catalog/categories/all` — the obvious "everything" URL — never actually renders any products; it's permanently just the category-nav shell. Each individual category page (`/catalog/categories/3` for Pizza, etc.) *does* render its items directly. The pipeline fetches all 11 real menu categories (everything except the time-limited "Promos" category) in one shared headless-browser session and joins them before extraction — see `fetch_urls` on Shakey's `PipelineSource` (scripts/pipeline/sources.ts) and `fetchRenderedMulti` (scripts/pipeline/fetch.ts). |
 
 Every chain that has a live ordering/delivery flow ties real pricing to a store/branch or
 delivery-address selection — none of them expose a single canonical "national" price list from
@@ -30,10 +33,11 @@ to live at the plain-HTML `chowking.ph/terms-and-conditions` after all — and S
 but both have now actually been read, not just "not found."
 
 **Ruled out entirely, not just deprioritized:** attempting to bypass Jollibee's bot protection
-to reach official pricing. That crosses from "scraping a public page" into "circumventing
-access controls" — a materially worse legal position (potential Cybercrime Prevention Act
-exposure in the PH, not just a ToS breach) and a losing technical bet (permanent arms race
-against an anti-bot system) for a project that has to survive on near-zero maintenance effort.
+to reach official pricing, and — discovered during Milestone 5 — the same call for Chowking's
+Cloudflare-gated menu API. Both cross from "scraping a public page" into "circumventing access
+controls" — a materially worse legal position (potential Cybercrime Prevention Act exposure in
+the PH, not just a ToS breach) and a losing technical bet (permanent arms race against an
+anti-bot system) for a project that has to survive on near-zero maintenance effort.
 
 ---
 
@@ -100,11 +104,16 @@ Google entirely.
 
 ## 5. Infrastructure feasibility
 
-Verified via research during planning: GitHub Actions public repos get effectively unlimited
-minutes on standard runners (4 vCPU / 16GB), and Playwright is comfortably feasible within
-that — browser install is well under two minutes, and a full weekly run across all six chains
-(three via Playwright, three via plain fetch) should complete in low single-digit minutes
-total.
+Verified via research during planning, then confirmed by actually running it (Milestone 5):
+GitHub Actions public repos get effectively unlimited minutes on standard runners (4 vCPU /
+16GB), and Playwright is comfortably feasible within that — browser install is well under two
+minutes, and a full run across the five wired chains (KFC + Shakey's via Playwright — Shakey's
+needing 11 category-page renders in one browser session, not just one — plus Jollibee,
+McDonald's, and Mang Inasal via plain fetch; Chowking hand-maintained, §1) should complete in
+low single-digit minutes total. `.github/workflows/pipeline.yml` (`workflow_dispatch`) exists and
+is ready to prove this in CI, but as of this writing it's only been exercised locally — it hasn't
+been pushed/triggered yet, so the CI run itself is still pending. Milestone 6 is what turns it
+into the unattended weekly cron once that first manual run confirms it.
 
 ---
 
@@ -128,3 +137,7 @@ exist by design, and they are intentionally different in kind:
 If a chain becomes unmaintainable in practice, the manual-override file is the release valve —
 it was designed as a scraping fallback, but it works equally well as a "give up on this one
 source and hand-maintain it occasionally" fallback without touching the rest of the system.
+Chowking (§1) is the first real instance of exactly this, discovered rather than hypothetical:
+its Cloudflare-gated menu API isn't safely automatable, so it's on the same "spot-check
+occasionally" footing as Jollibee and McDonald's above, just without even the third-party site
+as a fetch target — `src/data/chowking.ts` is hand-maintained directly.

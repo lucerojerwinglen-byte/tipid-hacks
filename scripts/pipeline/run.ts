@@ -3,8 +3,17 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { checksumOf, fetchRaw, isUnchangedSinceLastRun, recordChecksum, stripHtmlNoise } from "./fetch.js";
+import {
+  checksumOf,
+  fetchRaw,
+  fetchRendered,
+  fetchRenderedMulti,
+  isUnchangedSinceLastRun,
+  recordChecksum,
+  stripHtmlNoise,
+} from "./fetch.js";
 import { extractItems } from "./extract.js";
+import { dedupeByLowestPrice } from "./dedupe.js";
 import { assignIdsAndResolveCombos } from "./ids.js";
 import { loadCurrentChainData } from "./current.js";
 import { validateExtractedItems } from "./validate.js";
@@ -30,8 +39,15 @@ export async function runChain(chainId: string, options: RunOptions): Promise<Ru
   const source = getSource(chainId);
   console.log(`\n${"=".repeat(60)}\n${source.chain_name} (${source.chain_id})\n${"=".repeat(60)}`);
 
-  // Stage 2: fetch.
-  const raw = await fetchRaw(source.source_url);
+  // Stage 2: fetch (DATA-PIPELINE.md §1 — "playwright" for the JS-rendered SPAs; fetch_urls
+  // for the rare chain where one page doesn't cover the catalog, e.g. Shakey's categories).
+  console.log(`Fetching via ${source.fetch_method}${source.fetch_urls ? ` (${source.fetch_urls.length} pages)` : ""}...`);
+  const raw =
+    source.fetch_method === "playwright"
+      ? source.fetch_urls
+        ? await fetchRenderedMulti(source.fetch_urls)
+        : await fetchRendered(source.source_url)
+      : await fetchRaw(source.source_url);
   console.log(`Fetched ${raw.length.toLocaleString()} bytes, checksum ${checksumOf(raw).slice(0, 12)}...`);
 
   // Stage 3: checksum gate.
@@ -46,8 +62,17 @@ export async function runChain(chainId: string, options: RunOptions): Promise<Ru
   const extracted = await extractItems(cleaned, source.chain_name);
   console.log(`Extracted ${extracted.length} raw items.`);
 
+  // Stage 4.5: dedupe (DATA-PIPELINE.md §1 — a chain's page can render more than one price
+  // list, e.g. KFC's delivery-vs-pickup split, in a single fetch; see dedupe.ts).
+  const { items: deduped, droppedCount } = dedupeByLowestPrice(extracted);
+  if (droppedCount > 0) {
+    console.log(
+      `Deduped ${droppedCount} duplicate item(s) with the same name+category (kept the lower price of each — dedupe.ts).`,
+    );
+  }
+
   const { items: pipelineItems, errors: idErrors } = assignIdsAndResolveCombos(
-    extracted,
+    deduped,
     source.chain_id,
     source.id_prefix,
   );
