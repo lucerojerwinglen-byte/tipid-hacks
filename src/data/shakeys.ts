@@ -1,8 +1,13 @@
-// Hand-typed for Milestone 2 (ROADMAP.md) — illustrative placeholder prices, not verified
-// live prices. Real values come from the pipeline's Playwright-rendered shakeyspizza.ph run
-// (see DATA-PIPELINE.md §1 — confirmed during planning that prices aren't server-rendered).
-// This is the chain that forces the pizza dual-contribution modeling question (DATA-MODEL.md
-// §4): a slice functions as a complete food unit, not a main paired with a separate carb.
+// Hand-maintained, same as src/data/chowking.ts — see sources.ts for why (Groq rate limits on
+// KFC/Shakey's real menus). STILL THE ORIGINAL MILESTONE-2 PLACEHOLDER DATA below, not yet
+// verified against the live site: shakeyspizza.ph paginates each category behind a "LOAD MORE
+// PRODUCTS" button and only exposes a "Starts at ₱X" price per item on the list page (real
+// size/variant pricing is behind a picker that isn't in the static page content) — confirmed
+// 2026-08-13 while investigating why the automated pipeline stalled. Getting real numbers here
+// needs manually clicking through each of the 11 category pages (DATA-PIPELINE.md §1), not just
+// a fetch. This is the chain that forces the pizza dual-contribution modeling question
+// (DATA-MODEL.md §4): a slice functions as a complete food unit, not a main paired with a
+// separate carb.
 
 import type { ChainData } from "../types.js";
 
@@ -10,10 +15,10 @@ export const shakeys: ChainData = {
   chain: {
     id: "shakeys",
     name: "Shakey's",
-    source_url: "https://www.shakeyspizza.ph/",
+    source_url: "https://www.shakeyspizza.ph/catalog/categories/all",
     source_type: "official",
     last_updated: "2026-08-11",
-    notes: "Illustrative Milestone-2 dataset — see DATA-PIPELINE.md §1 for the real source plan.",
+    notes: "Illustrative Milestone-2 dataset, not yet verified live — see file header.",
   },
   items: [
     // Pizza sizes: main_servings/carb_servings both set to the slice-equivalent serving

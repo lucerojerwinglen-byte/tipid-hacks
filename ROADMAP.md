@@ -95,30 +95,42 @@ blocked, not silently merged.
 - Confirm feasibility inside GitHub Actions (DATA-PIPELINE.md §5) with a real CI run, not just
   local testing.
 
-**Status: KFC and Shakey's wired and hand-tested for real; Chowking deferred.** Building this
-for real (not just against the planning-time assumptions) surfaced three corrections, all
-captured in DATA-PIPELINE.md §1:
+**Status: all three deferred to hand-maintained data. Milestone closed on that basis.** Building
+this for real (not just against the planning-time assumptions) surfaced corrections for all
+three chains, all captured in DATA-PIPELINE.md §1:
 
-- **KFC**'s homepage doesn't carry prices at all — the real fetch target is `/en/menu`.
-- **Shakey's** has no single "all items" page that renders; its catalog is 11 separate
-  category pages, fetched in one shared Playwright session and joined
-  (`fetch_urls`/`fetchRenderedMulti`).
+- **KFC**'s homepage doesn't carry prices at all — the real fetch target is `/en/menu`. Fetch
+  itself worked fine, but KFC's real (~280-item) menu needs 9 LLM-extraction chunks, and Groq's
+  free-tier 8,000 TPM budget turns that into 20-50+ minute rate-limit waits per chunk — both
+  locally and in a real Actions run (2026-08-12/13, cancelled after over an hour still mid-run).
+  Along the way this surfaced and fixed two latent bugs in the extraction step itself: Groq's
+  TPM rate limit can reject a request outright (HTTP 413) rather than only 429 after acceptance,
+  and the fixed `CHUNK_CHAR_LIMIT` tuned against Milestone 4's sparser pages let too many items
+  land in one chunk, overflowing `MAX_COMPLETION_TOKENS` (scripts/pipeline/extract.ts) — both
+  fixes are still live in the pipeline for the three chains that do run through it.
+- **Shakey's** has no single "all items" page that renders; its catalog is 11 separate category
+  pages. Wiring `fetch_urls`/`fetchRenderedMulti` to fetch and join them worked, but it hit the
+  same Groq rate-limiting as KFC before a real run ever finished, and investigating that
+  surfaced a second, independent blocker: each category page paginates behind a "LOAD MORE
+  PRODUCTS" button and only shows a single "Starts at ₱X" price, with real size/variant pricing
+  behind a picker not present in the rendered page content. `src/data/shakeys.ts` still holds
+  Milestone-2 placeholder prices pending a manual pass.
 - **Chowking**'s pricing lives behind a Cloudflare-gated JSON API that a real headless-browser
   session only triggers inconsistently and that direct calls get 403'd on — the same shape as
-  Jollibee's already-ruled-out official domain, and ruled out for the same reason (§1). It stays
-  on hand-maintained data (`src/data/chowking.ts`) rather than becoming a maintenance trap or a
-  bot-protection arms race.
-- Along the way, running KFC's real (denser) menu through the Milestone-4 extraction pipeline
-  also surfaced two latent bugs in it, now fixed: Groq's TPM rate limit can reject a request
-  outright (HTTP 413) rather than only 429 after acceptance, and the fixed `CHUNK_CHAR_LIMIT`
-  tuned against Milestone 4's sparser pages let too many items land in one chunk, overflowing
-  `MAX_COMPLETION_TOKENS` (scripts/pipeline/extract.ts).
+  Jollibee's already-ruled-out official domain, and ruled out for the same reason (§1).
 
-**Done when:** KFC and Shakey's run through the same pipeline as Milestone 4, confirmed locally;
-`.github/workflows/pipeline.yml` (`workflow_dispatch`) exists and is ready to prove the same in
-CI, but that first real Actions run is still pending (not yet pushed/triggered). Chowking is
-explicitly out of scope for automation — see DATA-PIPELINE.md §1/§6 — so "all six chains
-automated" is not this milestone's bar; five automated plus one consciously deferred is.
+All three stay on hand-maintained data (`src/data/{kfc,shakeys,chowking}.ts`) rather than
+becoming a maintenance trap or, in Chowking's case, a bot-protection arms race — the manual-
+override mechanism's designed fallback role (DATA-PIPELINE.md §2).
+
+**Done when:** the three remaining wired chains (Jollibee, McDonald's, Mang Inasal) are confirmed
+running cleanly through a real GitHub Actions run (`.github/workflows/pipeline.yml`,
+`workflow_dispatch`), Playwright install step removed since nothing wired needs headless
+rendering anymore — not yet confirmed as of 2026-08-13 (the two dispatched runs so far both
+included KFC/Shakey's before this decision and were cancelled mid-run for that reason, not
+because the HTTP-only chains failed). KFC, Shakey's, and Chowking are explicitly out of scope
+for automation — see DATA-PIPELINE.md §1/§6 — so "all six chains automated" was never this
+milestone's real bar; three automated plus three consciously hand-maintained is.
 
 ## Milestone 6 — Automation and alerting
 

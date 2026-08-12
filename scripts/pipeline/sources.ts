@@ -1,10 +1,15 @@
-// Five of six chains' pipeline sources (DATA-PIPELINE.md §1). Jollibee, McDonald's, and Mang
-// Inasal (Milestone 4) are plain HTTP fetches; KFC and Shakey's (Milestone 5) are JS-rendered
-// SPAs and need Playwright (fetch_method dispatches this in run.ts). Chowking is deliberately
-// NOT here: Milestone 5 confirmed its menu-data API sits behind Cloudflare bot protection
-// (returns HTTP 403 to anything but a full real-browser session, and even that only fires the
-// call inconsistently) — see DATA-PIPELINE.md §1 for the discovery and why this project doesn't
-// attempt to route around it. src/data/chowking.ts stays hand-maintained until that changes.
+// Three of six chains' pipeline sources (DATA-PIPELINE.md §1). Jollibee, McDonald's, and Mang
+// Inasal (Milestone 4) are plain HTTP fetches. KFC, Shakey's, and Chowking are deliberately NOT
+// here — all three stay hand-maintained (src/data/{kfc,shakeys,chowking}.ts), each for its own
+// reason:
+// - Chowking's menu-data API sits behind Cloudflare bot protection (HTTP 403 to anything but a
+//   full real-browser session, and even that only fires the call inconsistently).
+// - KFC and Shakey's are JS-rendered SPAs that Playwright *can* fetch, but their real menus are
+//   dense enough that the LLM-extraction step (extract.ts) blows through Groq's free-tier
+//   8,000 TPM budget — runs stall on 20-50+ minute rate-limit backoffs per chunk, both locally
+//   and in CI (a real Actions run on 2026-08-12 was still stuck after an hour and had to be
+//   cancelled). Rather than pay for a higher Groq tier or add a second LLM provider just for two
+//   chains, both moved to hand-maintained data, same as Chowking.
 
 import type { PipelineSource } from "./types.js";
 
@@ -35,45 +40,6 @@ export const PIPELINE_SOURCES: PipelineSource[] = [
     fetch_method: "http",
     id_prefix: "mi",
     export_var_name: "mangInasal",
-  },
-  {
-    chain_id: "kfc",
-    chain_name: "KFC",
-    // The homepage is a landing shell with no prices — "OUR MENU" resolves to this path
-    // client-side, and it's the one that actually renders the priced catalog once Playwright
-    // loads it (confirmed by hand during Milestone 5).
-    source_url: "https://www.kfc.com.ph/en/menu",
-    source_type: "official",
-    fetch_method: "playwright",
-    id_prefix: "kfc",
-    export_var_name: "kfc",
-  },
-  {
-    chain_id: "shakeys",
-    chain_name: "Shakey's",
-    source_url: "https://www.shakeyspizza.ph/catalog/categories/all",
-    source_type: "official",
-    fetch_method: "playwright",
-    // /catalog/categories/all never actually renders products (confirmed by hand — it's a
-    // permanent category-nav shell, not a lazy-load timing issue). Every real category *does*
-    // render its items directly, so fetch each one and let run.ts join them. Deliberately
-    // excludes "Promos" (category 34, time-limited) to mirror how the other five chains' pages
-    // only ever exposed standing menu prices, not flash offers.
-    fetch_urls: [
-      "https://www.shakeyspizza.ph/catalog/categories/3", // Pizza
-      "https://www.shakeyspizza.ph/catalog/categories/4", // Group Meals
-      "https://www.shakeyspizza.ph/catalog/categories/33", // Chicken 'n Mojos
-      "https://www.shakeyspizza.ph/catalog/categories/36", // Combos
-      "https://www.shakeyspizza.ph/catalog/categories/143", // Sandwiches
-      "https://www.shakeyspizza.ph/catalog/categories/25", // Pasta
-      "https://www.shakeyspizza.ph/catalog/categories/26", // Starters
-      "https://www.shakeyspizza.ph/catalog/categories/18", // Soup & Salad
-      "https://www.shakeyspizza.ph/catalog/categories/98", // Desserts
-      "https://www.shakeyspizza.ph/catalog/categories/11", // Drinks
-      "https://www.shakeyspizza.ph/catalog/categories/24", // Extras
-    ],
-    id_prefix: "sh",
-    export_var_name: "shakeys",
   },
 ];
 
