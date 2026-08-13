@@ -125,6 +125,7 @@ export function App() {
                 result={solved.result}
                 chainName={solved.chainName}
                 runnersUp={solved.runnersUp}
+                lastUpdated={solved.lastUpdated}
               />
             </div>
           ) : (

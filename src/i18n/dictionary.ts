@@ -67,6 +67,7 @@ export interface Dictionary {
   freshness: { fresh: (date: string) => string; stale: (date: string) => string };
   localeToggle: { switchToEnglish: string; switchToTagalog: string };
   priceReport: { linkLabel: string };
+  share: { button: string; rendering: string; error: string; downloadedNote: string };
 }
 
 const servingWord = (n: number) => (n === 1 ? "serving" : "servings");
@@ -148,6 +149,12 @@ export const tl: Dictionary = {
     switchToTagalog: "Manatili sa Tagalog",
   },
   priceReport: { linkLabel: "Mali ang presyo?" },
+  share: {
+    button: "I-share ang resulta",
+    rendering: "Ginagawa ang larawan…",
+    error: "Hindi na-share. Subukan ulit.",
+    downloadedNote: "Na-download ang larawan.",
+  },
 };
 
 export const en: Dictionary = {
@@ -227,6 +234,12 @@ export const en: Dictionary = {
     switchToTagalog: "Switch to Tagalog",
   },
   priceReport: { linkLabel: "Wrong price?" },
+  share: {
+    button: "Share result",
+    rendering: "Preparing image…",
+    error: "Couldn't share. Try again.",
+    downloadedNote: "Image downloaded.",
+  },
 };
 
 export const dictionaries: Record<Locale, Dictionary> = { tl, en };

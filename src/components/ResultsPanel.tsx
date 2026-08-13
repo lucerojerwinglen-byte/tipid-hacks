@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { chains } from "../data/chains.js";
 import { useLocale } from "../i18n/LocaleContext.js";
+import { ShareButton } from "./ShareButton.js";
 import type { ChainSolveResult, SolveResult } from "../solver.js";
 import type { Item } from "../types.js";
 import { buildPriceReportUrl } from "../utils/priceReportUrl.js";
@@ -52,9 +53,12 @@ interface ResultsPanelProps {
   chainName?: string;
   /** Set only in "any chain" mode — the next 1-2 best chains, for the "why this won" comparison. */
   runnersUp?: ChainSolveResult[];
+  /** Same value FreshnessIndicator renders — plumbed down so the shared receipt image matches
+   * what's on screen. */
+  lastUpdated: string;
 }
 
-export function ResultsPanel({ result, chainName, runnersUp }: ResultsPanelProps) {
+export function ResultsPanel({ result, chainName, runnersUp, lastUpdated }: ResultsPanelProps) {
   const { t } = useLocale();
   const summaryText = result.feasible
     ? t.results.summaryFeasible(pesos(result.totalCost), pesos(result.leftover), chainName)
@@ -103,6 +107,8 @@ export function ResultsPanel({ result, chainName, runnersUp }: ResultsPanelProps
 
   const bonusLabel = result.mode === "maximum-food" ? t.results.bonusIncluded : t.results.bonusSuggested;
   const feasibleRunnerUp = runnersUp?.find((r) => r.result.feasible);
+  const resolvedChainId = result.coverageItems[0]?.item.chain_id ?? "";
+  const chainDisplayName = chainName ?? chainById.get(resolvedChainId)?.name ?? "";
 
   return (
     <>
@@ -187,6 +193,13 @@ export function ResultsPanel({ result, chainName, runnersUp }: ResultsPanelProps
         )}
 
         <div className="barcode mt-5" role="presentation" />
+
+        <ShareButton
+          result={result}
+          chainDisplayName={chainDisplayName}
+          chainId={resolvedChainId}
+          lastUpdated={lastUpdated}
+        />
       </div>
     </>
   );
