@@ -1,114 +1,160 @@
-// One-off placeholder icon generator for Milestone 3 (ROADMAP.md) — no image-processing
-// dependency needed for a simple flat mark. Run with `node scripts/generate-icons.mjs`.
-// Produces a rounded-square "coin" mark (peso-green bg, marker-yellow disc) matching the
-// app's receipt/stamp theme (see index.css). Real branding can replace these PNGs later
-// without touching code.
-import { writeFileSync } from "node:fs";
-import { deflateSync } from "node:zlib";
+// Regenerates the app's icons and header wordmark from the real logo (assests/barato-logo-nobg.png)
+// via a headless canvas (Playwright is already a pipeline devDependency). Re-run this after the
+// source logo changes: `node scripts/generate-icons.mjs`.
+//
+// The source PNG (2000x1600) contains two vertically-stacked elements with no fully-transparent
+// gap row between them (the "B"'s round top overlaps the wave's tail band), so the split between
+// "wave" and "wordmark" below is a fixed y-coordinate picked by inspecting row pixel-density
+// (see docs/adr/0003-visual-identity-teal-brand-refresh.md) rather than detected at runtime.
+import { chromium } from "playwright";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 
-const CRC_TABLE = (() => {
-  const table = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    table[n] = c >>> 0;
-  }
-  return table;
-})();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(__dirname, "..");
+const SOURCE = join(ROOT, "assests", "barato-logo-nobg.png");
+const sourceUrl = "file:///" + SOURCE.replace(/\\/g, "/");
 
-function crc32(buf) {
-  let c = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
+// Bounding boxes within the 2000x1600 source, hand-picked from pixel analysis (ADR 0003).
+const WAVE = { x0: 152, y0: 300, x1: 1452, y1: 555 }; // wave squiggle, small margin
+// y0 was 628 (then a wrongly-judged 650 — see git history), both clipping the top of the "B"'s
+// loop and other ascenders. The wave's orange tail overlaps the wordmark's own bounding box down
+// to about y610 with no fully-transparent gap row between them (see the file-header comment), so
+// this was re-picked by rendering several y0 candidates through the real render pipeline at
+// production size and reading each one back — not by eyeballing a coordinate. y0=620 is the
+// first value that fully clears the wave's tail while keeping the full glyph top intact.
+const WORD = { x0: 90, y0: 620, x1: 1930, y1: 1090 }; // "Barato" wordmark, small margin
 
-function chunk(type, data) {
-  const typeBuf = Buffer.from(type, "ascii");
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length, 0);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
-  return Buffer.concat([len, typeBuf, data, crc]);
-}
+const PAGE_HTML = `
+<!doctype html><html><body><canvas id="c"></canvas>
+<script>
+window.render = async (url, ops) => {
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  const src = document.createElement('canvas');
+  src.width = img.width; src.height = img.height;
+  src.getContext('2d').drawImage(img, 0, 0);
 
-function encodePNG(width, height, rgba) {
-  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // color type: RGBA
-  ihdr[10] = 0;
-  ihdr[11] = 0;
-  ihdr[12] = 0;
-
-  const rowBytes = width * 4;
-  const raw = Buffer.alloc((rowBytes + 1) * height);
-  for (let y = 0; y < height; y++) {
-    raw[y * (rowBytes + 1)] = 0; // filter: none
-    rgba.copy(raw, y * (rowBytes + 1) + 1, y * rowBytes, y * rowBytes + rowBytes);
-  }
-  const idat = deflateSync(raw);
-
-  return Buffer.concat([
-    sig,
-    chunk("IHDR", ihdr),
-    chunk("IDAT", idat),
-    chunk("IEND", Buffer.alloc(0)),
-  ]);
-}
-
-// Orange rounded square (bg) + white disc (coin motif). `padPct` controls how much
-// breathing room surrounds the disc — maskable icons need a bigger safe-zone margin.
-function drawIcon(size, { padPct, cornerPct }) {
-  const rgba = Buffer.alloc(size * size * 4);
-  const bg = [31, 122, 92]; // --color-peso
-  const fg = [244, 196, 48]; // --color-marker
-  const corner = size * cornerPct;
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = size / 2 - size * padPct;
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const i = (y * size + x) * 4;
-
-      // Rounded-square background mask (distance-to-nearest-corner-center test).
-      let insideBg = true;
-      const nearLeft = x < corner;
-      const nearRight = x > size - corner;
-      const nearTop = y < corner;
-      const nearBottom = y > size - corner;
-      if ((nearLeft || nearRight) && (nearTop || nearBottom)) {
-        const ccx = nearLeft ? corner : size - corner;
-        const ccy = nearTop ? corner : size - corner;
-        const d = Math.hypot(x - ccx, y - ccy);
-        insideBg = d <= corner;
-      }
-
-      const inDisc = Math.hypot(x - cx, y - cy) <= r;
-      const [cr, cg, cb] = inDisc ? fg : bg;
-      const a = insideBg ? 255 : 0;
-      rgba[i] = cr;
-      rgba[i + 1] = cg;
-      rgba[i + 2] = cb;
-      rgba[i + 3] = a;
+  const results = {};
+  for (const [key, op] of Object.entries(ops)) {
+    const { box, size, bgColor, padPct, corner } = op;
+    const out = document.createElement('canvas');
+    const w = size.w, h = size.h;
+    out.width = w; out.height = h;
+    const ctx = out.getContext('2d');
+    if (corner) {
+      ctx.beginPath();
+      ctx.moveTo(corner, 0);
+      ctx.arcTo(w, 0, w, h, corner);
+      ctx.arcTo(w, h, 0, h, corner);
+      ctx.arcTo(0, h, 0, 0, corner);
+      ctx.arcTo(0, 0, w, 0, corner);
+      ctx.closePath();
+      ctx.clip();
     }
+    if (bgColor) { ctx.fillStyle = bgColor; ctx.fillRect(0, 0, w, h); }
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    const bw = box.x1 - box.x0, bh = box.y1 - box.y0;
+    const pad = padPct || 0;
+    const avail = { w: w * (1 - pad * 2), h: h * (1 - pad * 2) };
+    const scale = Math.min(avail.w / bw, avail.h / bh);
+    const dw = bw * scale, dh = bh * scale;
+    const dx = (w - dw) / 2, dy = (h - dh) / 2;
+    ctx.drawImage(src, box.x0, box.y0, bw, bh, dx, dy, dw, dh);
+    results[key] = out.toDataURL(op.format || 'image/png', op.quality);
   }
-  return rgba;
+  return results;
+};
+</script></body></html>`;
+
+const CREAM = "#fffdf8";
+
+const targets = {
+  // Header wordmark: transparent bg, tight crop, exported wide for retina (~3x a 34px-tall header
+  // mark). WebP (not PNG) because this asset ships in the app's own JS/asset bundle, where the
+  // perf budget (PRD.md §7) applies directly — PNG came out to ~95KB for this image, WebP ~9KB.
+  wordmark: {
+    box: WORD,
+    size: { w: 340, h: Math.round((340 * (WORD.y1 - WORD.y0)) / (WORD.x1 - WORD.x0)) },
+    format: "image/webp",
+    quality: 0.78,
+    out: join(ROOT, "src", "assets", "brand", "wordmark.webp"),
+  },
+  // App icons: wave mark centered on cream, matching how the source art actually presents it.
+  icon192: {
+    box: WAVE,
+    size: { w: 192, h: 192 },
+    bgColor: CREAM,
+    padPct: 0.24,
+    corner: 192 * 0.2,
+    out: join(ROOT, "public", "icon-192.png"),
+  },
+  icon512: {
+    box: WAVE,
+    size: { w: 512, h: 512 },
+    bgColor: CREAM,
+    padPct: 0.24,
+    corner: 512 * 0.2,
+    out: join(ROOT, "public", "icon-512.png"),
+  },
+  // Maskable: OS crops to a circle, so keep the mark well inside the safe zone, full-bleed bg, no rounding.
+  iconMaskable: {
+    box: WAVE,
+    size: { w: 512, h: 512 },
+    bgColor: CREAM,
+    padPct: 0.34,
+    out: join(ROOT, "public", "icon-maskable-512.png"),
+  },
+  appleTouchIcon: {
+    box: WAVE,
+    size: { w: 180, h: 180 },
+    bgColor: CREAM,
+    padPct: 0.24,
+    corner: 180 * 0.22,
+    out: join(ROOT, "public", "apple-touch-icon.png"),
+  },
+};
+
+const { mkdirSync, writeFileSync } = await import("node:fs");
+
+// A page loaded via setContent() sits on an about:blank origin, which still taints canvas reads
+// from a file:// image even with the launch flags below — so write the harness to a real file:// URL.
+const harnessPath = join(ROOT, "scripts", ".generate-icons-harness.html");
+writeFileSync(harnessPath, PAGE_HTML);
+
+const browser = await chromium.launch({
+  args: ["--allow-file-access-from-files", "--disable-web-security"],
+});
+const page = await browser.newPage();
+await page.goto("file:///" + harnessPath.replace(/\\/g, "/"));
+
+const ops = Object.fromEntries(
+  Object.entries(targets).map(([key, t]) => [
+    key,
+    {
+      box: t.box,
+      size: t.size,
+      bgColor: t.bgColor,
+      padPct: t.padPct,
+      corner: t.corner,
+      format: t.format,
+      quality: t.quality,
+    },
+  ]),
+);
+const dataUrls = await page.evaluate(({ url, ops }) => window.render(url, ops), { url: sourceUrl, ops });
+
+for (const [key, target] of Object.entries(targets)) {
+  const base64 = dataUrls[key].replace(/^data:image\/\w+;base64,/, "");
+  mkdirSync(dirname(target.out), { recursive: true });
+  writeFileSync(target.out, Buffer.from(base64, "base64"));
+  console.log(`wrote ${target.out} (${Buffer.byteLength(base64, "base64")} bytes)`);
 }
 
-const targets = [
-  { file: "public/icon-192.png", size: 192, padPct: 0.28, cornerPct: 0.2 },
-  { file: "public/icon-512.png", size: 512, padPct: 0.28, cornerPct: 0.2 },
-  // Maskable: OS may crop to a circle, so keep the disc well inside the safe zone and
-  // fill the full square with no rounding (the OS does its own masking).
-  { file: "public/icon-maskable-512.png", size: 512, padPct: 0.38, cornerPct: 0 },
-  { file: "public/apple-touch-icon.png", size: 180, padPct: 0.28, cornerPct: 0.22 },
-];
+await browser.close();
 
-for (const t of targets) {
-  const rgba = drawIcon(t.size, t);
-  writeFileSync(t.file, encodePNG(t.size, t.size, rgba));
-  console.log(`wrote ${t.file}`);
-}
+const { unlinkSync } = await import("node:fs");
+unlinkSync(harnessPath);

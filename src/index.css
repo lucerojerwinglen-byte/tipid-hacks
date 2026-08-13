@@ -7,23 +7,31 @@
   only — no webfont fetch — because the non-functional budget (PRD.md §7: <100KB payload,
   usable on a dead prepaid balance) is part of the brand promise, not just an engineering
   constraint.
+
+  Brand colors (--color-brand*, --color-stamp*) are sampled from the real logo
+  (assests/barato-logo-nobg.png) and adjusted only for WCAG contrast where a color is used
+  as text/border, not eyeballed — see docs/adr/0003-visual-identity-teal-brand-refresh.md.
 */
 @theme {
   --color-bg: #f1ece0;
   --color-paper: #fffdf8;
   --color-ink: #201d1a;
   --color-ink-muted: #6b6459;
-  --color-peso: #1f7a5c;
-  --color-peso-dark: #14503d;
-  --color-peso-soft: #e4f0ea;
-  --color-stamp: #bd431f;
-  --color-stamp-soft: #fbe9e0;
+  --color-brand: #00686b; /* logo's dark-teal outline — 6.47:1 on paper, safe for text/border */
+  --color-brand-light: #5bb2b5; /* logo's teal fill — decorative only, ~2.4:1, never text */
+  --color-brand-soft: #e8f3ef;
+  --color-stamp: #996900; /* logo's wave gold, darkened for 4.5:1 on paper (raw gold is 1.8:1) */
+  --color-stamp-light: #ffad00; /* logo's wave gold, true value — decorative only, never text */
+  --color-stamp-soft: #fff0d0;
   --color-marker: #f4c430;
   --color-line: #e4dcc9;
 
   --font-display: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", "Consolas", monospace;
   --font-body:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* No cross-platform system "rounded" font exists (ui-rounded is Apple-only) — headings lean
+     warmer via weight/tracking on the body stack instead of a different (webfont) typeface. */
+  --font-heading: ui-rounded, var(--font-body);
 }
 
 @layer base {
@@ -40,7 +48,7 @@
   }
 
   :focus-visible {
-    outline: 3px solid var(--color-peso);
+    outline: 3px solid var(--color-brand);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -123,5 +131,36 @@
       transparent 42%
     );
     padding: 0 0.15em;
+  }
+
+  /*
+    Paper grain: echoes the logo artwork's own textured-paper background. SVG feTurbulence,
+    not a raster image — zero extra network request, tiles seamlessly, themeable via the mask's
+    host color. Kept very low-opacity so it reads as paper tooth, not visible noise.
+  */
+  .paper-grain {
+    position: relative;
+  }
+  .paper-grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.05;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /*
+    Wave motif: the logo's two-arc squiggle, redrawn as inline SVG (not a re-export of the
+    raster crop) so it stays crisp and colorable at any size — same "decoration is code, not an
+    image" approach as .torn-strip and .barcode above.
+  */
+  .wave-motif {
+    height: 20px;
+    background-repeat: repeat-x;
+    background-size: 44px 20px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='20' viewBox='0 0 44 20'%3E%3Cpath d='M0 8 C5 3, 6 3, 11 8 C16 13, 17 13, 22 8 C27 3, 28 3, 33 8 C38 13, 39 13, 44 8' fill='none' stroke='%235bb2b5' stroke-width='2.75' stroke-linecap='round'/%3E%3Cpath d='M0 14 C5 9, 6 9, 11 14 C16 19, 17 19, 22 14 C27 9, 28 9, 33 14 C38 19, 39 19, 44 14' fill='none' stroke='%23ffad00' stroke-width='2.75' stroke-linecap='round'/%3E%3C/svg%3E");
   }
 }

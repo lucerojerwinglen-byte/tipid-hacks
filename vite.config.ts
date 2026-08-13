@@ -24,7 +24,7 @@ export default defineConfig({
         name: "barato — Fast Food Budget Optimizer",
         short_name: "barato",
         description: "Find the cheapest fast-food order that feeds your group in the Philippines.",
-        theme_color: "#1f7a5c",
+        theme_color: "#00686b",
         background_color: "#f1ece0",
         display: "standalone",
         start_url: "/",

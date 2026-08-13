@@ -43,7 +43,7 @@ export function BudgetForm({
             onChange={(e) => onBudgetChange(e.target.value)}
             placeholder="300"
             className="w-full rounded-lg border border-line bg-paper py-3 pr-4 pl-9 font-display text-lg text-ink
-                       focus:border-peso"
+                       transition-colors focus:border-brand"
           />
         </div>
       </div>
@@ -62,7 +62,7 @@ export function BudgetForm({
           onChange={(e) => onHeadcountChange(e.target.value)}
           placeholder="4"
           className="w-full rounded-lg border border-line bg-paper px-4 py-3 font-display text-lg text-ink
-                     focus:border-peso"
+                     transition-colors focus:border-brand"
         />
       </div>
 
@@ -77,7 +77,7 @@ export function BudgetForm({
               aria-pressed={mode === m.value}
               className={`rounded-lg border px-4 py-3 text-left transition-colors ${
                 mode === m.value
-                  ? "border-peso bg-peso-soft"
+                  ? "border-brand bg-brand-soft"
                   : "border-line bg-paper hover:border-ink-muted"
               }`}
             >

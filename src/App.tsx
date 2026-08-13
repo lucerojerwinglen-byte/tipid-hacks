@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import wordmark from "./assets/brand/wordmark.webp";
 import { BudgetForm } from "./components/BudgetForm.js";
 import { ChainSelector } from "./components/ChainSelector.js";
 import { DietaryFilters } from "./components/DietaryFilters.js";
@@ -65,21 +66,29 @@ export function App() {
   }, [validInput, parsedBudget, parsedHeadcount, mode, chainId, excludedTags, selectedChain]);
 
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="paper-grain min-h-screen bg-bg">
       <InAppBrowserBanner />
 
-      <header className="bg-peso px-4 pb-5 pt-6 text-paper">
+      {/* Header sits on the plain page bg (not a solid brand-color block) so the wordmark —
+          teal on transparent — has the contrast it needs; see docs/adr/0003. */}
+      <header className="px-4 pb-3 pt-6">
         <div className="mx-auto max-w-md">
-          <h1 className="font-display text-2xl font-bold tracking-tight">barato</h1>
-          <p className="mt-0.5 text-sm text-peso-soft">
+          <h1>
+            <img src={wordmark} alt="barato" width={340} height={81} className="block h-8 w-auto" />
+          </h1>
+          <p className="font-heading mt-1.5 text-sm font-semibold tracking-tight text-ink-muted">
             Presyo checker — para malaman kung ano ang kayang-kaya
           </p>
         </div>
       </header>
 
+      <div className="mx-auto max-w-md px-4">
+        <div className="wave-motif" role="presentation" />
+      </div>
+
       <div className="mx-auto max-w-md px-4 pt-5 pb-10">
         <div className="torn-strip torn-strip--scallop" />
-        <div className="space-y-5 rounded-b-lg border border-t-0 border-line bg-paper p-5 shadow-sm">
+        <div className="paper-grain space-y-5 rounded-b-lg border border-t-0 border-line bg-paper p-5 shadow-sm">
           <ChainSelector chains={chains} selectedChainId={chainId} onChange={setChainId} />
 
           <BudgetForm

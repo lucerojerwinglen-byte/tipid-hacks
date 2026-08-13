@@ -45,9 +45,9 @@ export function ResultsPanel({ result, chainName, runnersUp }: ResultsPanelProps
   return (
     <>
       <div className="torn-strip torn-strip--zigzag" />
-      <div className="rounded-b-lg border border-t-0 border-line bg-paper p-5 shadow-sm">
+      <div className="paper-grain rounded-b-lg border border-t-0 border-line bg-paper p-5 shadow-sm">
         {chainName && (
-          <p className="mb-3 inline-block rounded border border-peso px-2 py-0.5 text-xs font-bold tracking-wide text-peso uppercase">
+          <p className="mb-3 inline-block rounded border border-brand px-2 py-0.5 text-xs font-bold tracking-wide text-brand uppercase">
             Best deal: {chainName}
           </p>
         )}

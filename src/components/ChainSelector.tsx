@@ -17,7 +17,7 @@ export function ChainSelector({ chains, selectedChainId, onChange }: ChainSelect
         value={selectedChainId}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-line bg-paper px-4 py-3 text-lg text-ink
-                   focus:border-peso"
+                   transition-colors focus:border-brand"
       >
         <option value="any">Any chain (best deal wins)</option>
         {chains.map((c) => (
