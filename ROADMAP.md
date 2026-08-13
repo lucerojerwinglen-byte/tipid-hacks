@@ -141,14 +141,16 @@ the old LLM step wouldn't have — acceptable here because the parse step's own 
 blocks a run that comes back empty or wildly wrong, same safety net as before (DATA-PIPELINE.md
 §2 step 4).
 
-**Done when:** the three remaining wired chains (Jollibee, McDonald's, Mang Inasal) are confirmed
+**Done.** The three remaining wired chains (Jollibee, McDonald's, Mang Inasal) are confirmed
 running cleanly through a real GitHub Actions run (`.github/workflows/pipeline.yml`,
 `workflow_dispatch`) using the new deterministic parsers, no `GROQ_API_KEY` secret needed at all
 — confirmed locally 2026-08-13 (clean parse + write for all three; Jollibee and Mang Inasal both
-picked up real, expected diffs from the parser rewrite, McDonald's had none), CI confirmation
-still pending. KFC, Shakey's, and Chowking are explicitly out of scope for automation — see
-DATA-PIPELINE.md §1/§6 — so "all six chains automated" was never this milestone's real bar; three
-automated plus three consciously hand-maintained is.
+picked up real, expected diffs from the parser rewrite, McDonald's had none), then confirmed in
+CI the same day: run 31681894928 completed in 22 seconds, a stark contrast to the previous
+Groq-based runs that stalled 20+ minutes to 2+ hours before being cancelled. KFC, Shakey's, and
+Chowking are explicitly out of scope for automation — see DATA-PIPELINE.md §1/§6 — so "all six
+chains automated" was never this milestone's real bar; three automated plus three consciously
+hand-maintained is.
 
 ## Milestone 6 — Automation and alerting
 
