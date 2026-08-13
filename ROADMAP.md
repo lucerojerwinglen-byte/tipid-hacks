@@ -73,13 +73,15 @@ on after first load, and passes a rough Lighthouse/3G-throttled check.
 ## Milestone 4 — Real data pipeline, easy sources first
 
 **Goal:** replace hand-entered data for the three chains that don't need a headless browser —
-smallest pipeline lift, proves the fetch → LLM parse → validate → commit loop end-to-end.
+smallest pipeline lift, proves the fetch → parse → validate → commit loop end-to-end.
 
 - Mang Inasal (official, plain fetch), Jollibee and McDonald's (third-party sources, plain
   fetch) — see DATA-PIPELINE.md §1.
-- Checksum gate, Groq structured extraction, the three sanity rules, diff-before-
-  commit, manual-override file mechanism, `source_type`/`price_confidence` fields wired
-  through to the data model.
+- Checksum gate, extraction, the three sanity rules, diff-before-commit, manual-override file
+  mechanism, `source_type`/`price_confidence` fields wired through to the data model. Originally
+  built on Groq structured extraction (an LLM parse step); **2026-08-13 correction:** replaced
+  with deterministic per-chain parsers (`scripts/pipeline/parsers/`) — see the Milestone 5
+  write-up below for why.
 - Run manually first (not yet on a schedule) to build confidence in the output before
   automating the trigger.
 
@@ -103,11 +105,11 @@ three chains, all captured in DATA-PIPELINE.md §1:
   itself worked fine, but KFC's real (~280-item) menu needs 9 LLM-extraction chunks, and Groq's
   free-tier 8,000 TPM budget turns that into 20-50+ minute rate-limit waits per chunk — both
   locally and in a real Actions run (2026-08-12/13, cancelled after over an hour still mid-run).
-  Along the way this surfaced and fixed two latent bugs in the extraction step itself: Groq's
+  Along the way this surfaced and fixed two latent bugs in the LLM extraction step itself: Groq's
   TPM rate limit can reject a request outright (HTTP 413) rather than only 429 after acceptance,
-  and the fixed `CHUNK_CHAR_LIMIT` tuned against Milestone 4's sparser pages let too many items
-  land in one chunk, overflowing `MAX_COMPLETION_TOKENS` (scripts/pipeline/extract.ts) — both
-  fixes are still live in the pipeline for the three chains that do run through it.
+  and a fixed chunk-size limit tuned against Milestone 4's sparser pages let too many items land
+  in one chunk, overflowing the completion-token budget. Moot now — see the 2026-08-13 correction
+  below, which removed the LLM-extraction step (and both its bugs) from the pipeline entirely.
 - **Shakey's** has no single "all items" page that renders; its catalog is 11 separate category
   pages. Wiring `fetch_urls`/`fetchRenderedMulti` to fetch and join them worked, but it hit the
   same Groq rate-limiting as KFC before a real run ever finished, and investigating that
@@ -123,14 +125,30 @@ All three stay on hand-maintained data (`src/data/{kfc,shakeys,chowking}.ts`) ra
 becoming a maintenance trap or, in Chowking's case, a bot-protection arms race — the manual-
 override mechanism's designed fallback role (DATA-PIPELINE.md §2).
 
+**2026-08-13 correction — the LLM step is gone entirely, not just for KFC/Shakey's.** The three
+chains still on the automated pipeline (Jollibee, McDonald's, Mang Inasal) are plain HTTP
+fetches with simple, stable page structure (a card grid + fallback `<table>` for Jollibee, a
+sequential heading/price pairing for McDonald's, a single well-formed price table with rowspan'd
+categories for Mang Inasal) — no headless browser, no dense multi-thousand-item catalog. That
+made them a good fit for a hand-written deterministic parser per chain
+(`scripts/pipeline/parsers/`) instead of the Groq LLM-extraction step, removing the rate-limit
+dependency (and the `GROQ_API_KEY` requirement) from the pipeline altogether — $0/month, no
+account, no quota to run into. Bonus: writing Mang Inasal's parser as an actual table walker
+fixed a real bug the old LLM extraction had, where it lost the table's rowspan'd Category column
+and produced bare, indistinguishable item names ("Solo", "Value Meal") for the Palabok section.
+The tradeoff is real, not free: a deterministic parser breaks on a genuine site redesign in a way
+the old LLM step wouldn't have — acceptable here because the parse step's own validation still
+blocks a run that comes back empty or wildly wrong, same safety net as before (DATA-PIPELINE.md
+§2 step 4).
+
 **Done when:** the three remaining wired chains (Jollibee, McDonald's, Mang Inasal) are confirmed
 running cleanly through a real GitHub Actions run (`.github/workflows/pipeline.yml`,
-`workflow_dispatch`), Playwright install step removed since nothing wired needs headless
-rendering anymore — not yet confirmed as of 2026-08-13 (the two dispatched runs so far both
-included KFC/Shakey's before this decision and were cancelled mid-run for that reason, not
-because the HTTP-only chains failed). KFC, Shakey's, and Chowking are explicitly out of scope
-for automation — see DATA-PIPELINE.md §1/§6 — so "all six chains automated" was never this
-milestone's real bar; three automated plus three consciously hand-maintained is.
+`workflow_dispatch`) using the new deterministic parsers, no `GROQ_API_KEY` secret needed at all
+— confirmed locally 2026-08-13 (clean parse + write for all three; Jollibee and Mang Inasal both
+picked up real, expected diffs from the parser rewrite, McDonald's had none), CI confirmation
+still pending. KFC, Shakey's, and Chowking are explicitly out of scope for automation — see
+DATA-PIPELINE.md §1/§6 — so "all six chains automated" was never this milestone's real bar; three
+automated plus three consciously hand-maintained is.
 
 ## Milestone 6 — Automation and alerting
 

@@ -2,13 +2,11 @@ name: Data pipeline (manual)
 
 # Milestone 5 (ROADMAP.md): confirms the pipeline runs on a GitHub Actions runner, not just on
 # Jerwin's own machine. Manual-only (workflow_dispatch) — the weekly unattended cron +
-# auto-alert-on-failure is deliberately Milestone 6's job, not this one. Requires a
-# GROQ_API_KEY repository secret (console.groq.com/keys, free tier — DATA-PIPELINE.md §4); the
-# workflow fails fast in the "Run pipeline" step if it's missing. No Playwright/Chromium install
-# step: KFC and Shakey's (the two chains that needed it) moved to hand-maintained data — see
-# scripts/pipeline/sources.ts — so every currently wired source is a plain HTTP fetch. Re-add
-# `npx playwright install --with-deps chromium` before "Run pipeline" if a JS-rendered chain
-# gets wired back in.
+# auto-alert-on-failure is deliberately Milestone 6's job, not this one. No API key needed —
+# every wired source is parsed deterministically (scripts/pipeline/parsers/), not via an LLM
+# (DATA-PIPELINE.md §1). No Playwright/Chromium install step either: every currently wired
+# source is a plain HTTP fetch. Re-add `npx playwright install --with-deps chromium` before "Run
+# pipeline" if a JS-rendered chain gets wired back in.
 
 on:
   workflow_dispatch:
@@ -40,14 +38,8 @@ jobs:
         run: npm ci
 
       - name: Run pipeline
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           set -euo pipefail
-          if [ -z "${GROQ_API_KEY:-}" ]; then
-            echo "::error::GROQ_API_KEY repo secret is not set (Settings > Secrets and variables > Actions). See DATA-PIPELINE.md §4."
-            exit 1
-          fi
           if [ "${{ inputs.commit }}" = "true" ]; then
             git config user.name "barato-pipeline[bot]"
             git config user.email "barato-pipeline[bot]@users.noreply.github.com"

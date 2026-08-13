@@ -1,4 +1,4 @@
-// Orchestrates the full pipeline for one chain: fetch -> checksum gate -> LLM parse ->
+// Orchestrates the full pipeline for one chain: fetch -> checksum gate -> deterministic parse ->
 // validate -> diff -> commit (DATA-PIPELINE.md §2). Invoked by scripts/run-pipeline.ts.
 
 import { execFile } from "node:child_process";
@@ -10,9 +10,7 @@ import {
   fetchRenderedMulti,
   isUnchangedSinceLastRun,
   recordChecksum,
-  stripHtmlNoise,
 } from "./fetch.js";
-import { extractItems } from "./extract.js";
 import { dedupeByLowestPrice } from "./dedupe.js";
 import { assignIdsAndResolveCombos } from "./ids.js";
 import { loadCurrentChainData } from "./current.js";
@@ -56,10 +54,9 @@ export async function runChain(chainId: string, options: RunOptions): Promise<Ru
     return { chainId, status: "skipped-unchanged", message: "No change detected." };
   }
 
-  // Stage 4: LLM parse.
-  const cleaned = stripHtmlNoise(raw);
-  console.log(`Extracting items via Groq (${cleaned.length.toLocaleString()} chars of input)...`);
-  const extracted = await extractItems(cleaned, source.chain_name);
+  // Stage 4: deterministic parse (scripts/pipeline/parsers/ — no LLM).
+  console.log(`Parsing items...`);
+  const extracted = source.parse(raw);
   console.log(`Extracted ${extracted.length} raw items.`);
 
   // Stage 4.5: dedupe (DATA-PIPELINE.md §1 — a chain's page can render more than one price

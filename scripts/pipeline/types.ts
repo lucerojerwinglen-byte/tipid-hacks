@@ -44,6 +44,9 @@ export interface PipelineSource {
   id_prefix: string;
   /** The `export const <name>` identifier in src/data/<chain_id>.ts (e.g. "mangInasal"). */
   export_var_name: string;
+  /** Deterministic parser (scripts/pipeline/parsers/) — replaces the old Groq LLM-extraction
+   * step (DATA-PIPELINE.md §1). Takes the raw fetched page content, returns items directly. */
+  parse: (rawHtml: string) => ExtractedItem[];
 }
 
 export interface ValidationIssue {

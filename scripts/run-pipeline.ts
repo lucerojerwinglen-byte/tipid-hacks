@@ -1,23 +1,15 @@
 // ROADMAP.md Milestones 4-5: run the real data pipeline by hand (not yet on a schedule —
 // that's Milestone 6). Usage:
 //
-//   npm run pipeline                          # all five wired chains (Chowking is hand-maintained)
-//   npm run pipeline -- jollibee kfc          # specific chains
+//   npm run pipeline                          # all three wired chains (the rest are hand-maintained)
+//   npm run pipeline -- jollibee mcdonalds    # specific chains (space-separated)
 //   npm run pipeline -- --no-commit           # write src/data/*.ts but skip the git commit
 //
-// Requires GROQ_API_KEY (free-tier Groq API key per DATA-PIPELINE.md §4) — put it in a .env
-// file at the project root (see .env.example); .env is git-ignored and never committed.
+// No API key needed — every wired source is parsed deterministically (scripts/pipeline/parsers/),
+// not via an LLM (DATA-PIPELINE.md §1).
 
-import "dotenv/config";
 import { PIPELINE_SOURCES } from "./pipeline/sources.js";
 import { runChain } from "./pipeline/run.js";
-
-if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === "your-groq-api-key-here") {
-  console.error(
-    "GROQ_API_KEY is not set. Copy .env.example to .env and paste your real key in there.",
-  );
-  process.exit(1);
-}
 
 const args = process.argv.slice(2);
 const commit = !args.includes("--no-commit");
