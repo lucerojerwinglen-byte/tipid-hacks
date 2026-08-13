@@ -89,6 +89,7 @@ export function App() {
       <div className="mx-auto max-w-md px-4 pt-5 pb-10">
         <div className="torn-strip torn-strip--scallop" />
         <div className="paper-grain space-y-5 rounded-b-lg border border-t-0 border-line bg-paper p-5 shadow-sm">
+          <h2 className="sr-only">I-set up ang order mo</h2>
           <ChainSelector chains={chains} selectedChainId={chainId} onChange={setChainId} />
 
           <BudgetForm
@@ -105,14 +106,15 @@ export function App() {
 
         <div className="mt-6">
           {solved ? (
-            <>
+            <div className="result-reveal">
+              <h2 className="sr-only">Resulta</h2>
               <FreshnessIndicator lastUpdated={solved.lastUpdated} />
               <ResultsPanel
                 result={solved.result}
                 chainName={solved.chainName}
                 runnersUp={solved.runnersUp}
               />
-            </>
+            </div>
           ) : (
             <p className="py-8 text-center text-ink-muted">
               Ilagay ang budget at bilang ng kakain para makita ang order mo.

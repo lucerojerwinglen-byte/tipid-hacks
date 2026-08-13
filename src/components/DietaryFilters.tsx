@@ -19,8 +19,8 @@ export function DietaryFilters({ excludedTags, onChange }: DietaryFiltersProps) 
   }
 
   return (
-    <div>
-      <span className="mb-1 block text-sm font-medium text-ink">Walang gusto?</span>
+    <fieldset className="m-0 border-0 p-0">
+      <legend className="mb-1 block text-sm font-medium text-ink">Walang gusto?</legend>
       <div className="flex flex-wrap gap-2">
         {FILTERS.map(({ tag, label }) => {
           const active = excludedTags.includes(tag);
@@ -30,7 +30,7 @@ export function DietaryFilters({ excludedTags, onChange }: DietaryFiltersProps) 
               type="button"
               onClick={() => toggle(tag)}
               aria-pressed={active}
-              className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+              className={`min-h-11 rounded-full border px-4 py-2 text-sm font-medium transition-colors active:scale-95 ${
                 active
                   ? "border-stamp bg-stamp-soft text-stamp"
                   : "border-line bg-paper text-ink-muted hover:border-ink-muted"
@@ -41,6 +41,6 @@ export function DietaryFilters({ excludedTags, onChange }: DietaryFiltersProps) 
           );
         })}
       </div>
-    </div>
+    </fieldset>
   );
 }
