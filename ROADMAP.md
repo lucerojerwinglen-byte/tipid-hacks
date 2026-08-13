@@ -197,6 +197,26 @@ foundation is solid.
 
 **Done when:** all should-have features from PRD.md §4 are live.
 
+**Done.** All three should-have features are live, each landed as its own commit and verified
+end-to-end in a real (headless) browser, not just via `npm test`:
+
+- **Tagalog/English toggle** — a hand-rolled `src/i18n/` dictionary (no react-i18next), `tl` a
+  verbatim copy of every string as it existed before the toggle, `en` newly authored. Locale
+  persists to `localStorage`. Screenshotted toggling live: every migrated string swaps correctly
+  in both directions, no console errors.
+- **One-tap "wrong price" report** — per-item links open a prefilled GitHub "new issue" (the app
+  has no backend to submit to directly, ARCHITECTURE.md); confirmed the generated URL's
+  title/body/label are correct against the real running app. The `price-report` label itself
+  still needs to be created on the repo (only `pipeline-alert` exists so far) — GitHub pre-selects
+  it on the compose form regardless, so this doesn't block the feature, just needs a follow-up
+  `gh label create` before the first real report comes in.
+- **Share result as an image** — hand-drawn `<canvas>` receipt (no `html2canvas`/`dom-to-image`;
+  full rationale in `docs/adr/0004-share-image-hand-drawn-canvas.md`), `navigator.share` with a
+  download fallback. Verified by actually downloading a real generated PNG and inspecting it —
+  correct layout, colors, and text wrapping, no console errors. `navigator.share`'s
+  transient-activation behavior on real iOS Safari is still an open real-device check (can't be
+  proven from a headless run).
+
 ## Milestone 8 — Open-source launch
 
 **Goal:** ship it to the distribution channels chosen during planning.
