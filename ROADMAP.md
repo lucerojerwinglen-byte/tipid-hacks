@@ -163,6 +163,25 @@ hand-maintained is.
 - One full unattended week, watched but not touched, to confirm the whole loop — including the
   "nothing changed, do nothing" checksum-gate path — behaves as designed.
 
+`.github/workflows/pipeline.yml` now carries a `schedule: cron: "0 0 * * 1"` trigger (Monday
+00:00 UTC / 08:00 PHT) alongside the existing manual `workflow_dispatch`, sharing one workflow
+file rather than splitting into two — less to keep in sync for a solo maintainer. A "Determine
+run mode" step makes scheduled runs always commit (there's nobody present to review a dry run
+the way a manual trigger's default `commit: false` assumes) and always cover every wired chain
+(`inputs.chains` is unset on a `schedule` event, which the pipeline already treats as "run all").
+
+The alert side adds a step gated on the "Run pipeline" step's own `outcome == 'failure'` —
+which already covered every failure mode `scripts/run-pipeline.ts` recognizes (a per-chain
+`validateExtractedItems` block, or a thrown fetch/parse error) via its existing `process.exit(1)`
+on any `blocked` result, so no change to the pipeline logic itself was needed, only to what the
+workflow does in response. On failure it opens a `pipeline-alert`-labelled GitHub issue with the
+run URL, trigger, and a tail of the captured log — or comments on the existing open one instead
+of opening a duplicate each week a chain stays broken.
+
+**Not done by this commit, deliberately:** the milestone's other bar — a full unattended week
+with no manual intervention — can't be satisfied by writing code, only by letting Monday's cron
+actually fire and watching what happens. First scheduled run: 2026-08-17 00:00 UTC.
+
 **Done when:** a full week passes with no manual intervention required, and Jerwin trusts the
 alert path enough to stop checking it daily.
 

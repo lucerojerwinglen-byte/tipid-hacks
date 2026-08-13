@@ -1,12 +1,16 @@
-name: Data pipeline (manual)
+name: Data pipeline
 
-# Milestone 5 (ROADMAP.md): confirms the pipeline runs on a GitHub Actions runner, not just on
-# Jerwin's own machine. Manual-only (workflow_dispatch) — the weekly unattended cron +
-# auto-alert-on-failure is deliberately Milestone 6's job, not this one. No API key needed —
-# every wired source is parsed deterministically (scripts/pipeline/parsers/), not via an LLM
-# (DATA-PIPELINE.md §1). No Playwright/Chromium install step either: every currently wired
-# source is a plain HTTP fetch. Re-add `npx playwright install --with-deps chromium` before "Run
-# pipeline" if a JS-rendered chain gets wired back in.
+# Milestone 6 (ROADMAP.md): the pipeline now runs unattended on a weekly cron, not just on
+# demand. Scheduled runs always commit (there's no one present to review a dry run) and always
+# cover every wired chain; a failed run (thrown error or a DATA-PIPELINE.md §3 sanity-rule
+# block) opens/updates a `pipeline-alert`-labelled GitHub issue instead of merging silently
+# (DATA-PIPELINE.md §2 step 8 — silent auto-updating of bad data is the failure mode this whole
+# project is designed against). workflow_dispatch is kept for on-demand runs (chain subset, dry
+# run by default — see the `commit` input). No API key needed — every wired source is parsed
+# deterministically (scripts/pipeline/parsers/), not via an LLM (DATA-PIPELINE.md §1). No
+# Playwright/Chromium install step either: every currently wired source is a plain HTTP fetch.
+# Re-add `npx playwright install --with-deps chromium` before "Run pipeline" if a JS-rendered
+# chain gets wired back in.
 
 on:
   workflow_dispatch:
@@ -20,12 +24,17 @@ on:
         type: boolean
         required: false
         default: false
+  schedule:
+    # Monday 00:00 UTC = Monday 08:00 PHT. Weekly cadence per DATA-PIPELINE.md §5/§6 — fast-food
+    # chains don't reprice often enough to justify more.
+    - cron: "0 0 * * 1"
 
 jobs:
   pipeline:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
 
@@ -37,23 +46,34 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run pipeline
+      - name: Determine run mode
+        id: mode
         run: |
           set -euo pipefail
-          if [ "${{ inputs.commit }}" = "true" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "commit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "commit=${{ inputs.commit }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run pipeline
+        id: run_pipeline
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.mode.outputs.commit }}" = "true" ]; then
             git config user.name "barato-pipeline[bot]"
             git config user.email "barato-pipeline[bot]@users.noreply.github.com"
-            npm run pipeline -- ${{ inputs.chains }}
+            npm run pipeline -- ${{ inputs.chains }} 2>&1 | tee pipeline.log
           else
-            npm run pipeline -- ${{ inputs.chains }} --no-commit
+            npm run pipeline -- ${{ inputs.chains }} --no-commit 2>&1 | tee pipeline.log
           fi
 
       - name: Push updated data
-        if: ${{ inputs.commit == 'true' }}
+        if: ${{ steps.mode.outputs.commit == 'true' }}
         run: git push
 
       - name: Upload pipeline output (dry run only — nothing was committed)
-        if: ${{ inputs.commit != 'true' }}
+        if: ${{ steps.mode.outputs.commit != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: pipeline-output
@@ -61,3 +81,29 @@ jobs:
             src/data/*.ts
             data/checksums.json
           retention-days: 14
+
+      - name: Alert on failure (DATA-PIPELINE.md §2 step 8, §3)
+        if: always() && steps.run_pipeline.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TRIGGER: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          LOG_TAIL=$(tail -c 60000 pipeline.log 2>/dev/null || echo "(no log captured)")
+          {
+            printf '%s\n\n' "The data pipeline run failed — a chain either threw during fetch/parse, or a DATA-PIPELINE.md §3 sanity rule blocked a commit. Nothing bad was merged; this just needs a human look."
+            printf '**Run:** %s\n' "$RUN_URL"
+            printf '**Trigger:** %s\n\n' "$TRIGGER"
+            printf '<details>\n<summary>Pipeline log (tail)</summary>\n\n<pre>\n%s\n</pre>\n</details>\n' "$LOG_TAIL"
+          } > pipeline-failure-body.md
+
+          gh label create pipeline-alert --color B60205 --description "Automated pipeline failure alert" --repo "$REPO" 2>/dev/null || true
+
+          EXISTING=$(gh issue list --repo "$REPO" --label pipeline-alert --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            gh issue comment "$EXISTING" --repo "$REPO" --body-file pipeline-failure-body.md
+          else
+            gh issue create --repo "$REPO" --title "Pipeline run failed: $(date -u +%F)" --label pipeline-alert --body-file pipeline-failure-body.md
+          fi
