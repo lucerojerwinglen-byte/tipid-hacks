@@ -1,9 +1,38 @@
 import { useEffect, useState } from "react";
+import { chains } from "../data/chains.js";
 import { useLocale } from "../i18n/LocaleContext.js";
 import type { ChainSolveResult, SolveResult } from "../solver.js";
+import type { Item } from "../types.js";
+import { buildPriceReportUrl } from "../utils/priceReportUrl.js";
 
 function pesos(n: number): string {
   return `₱${n.toLocaleString("en-PH")}`;
+}
+
+// Every item in a single SolveResult shares one chain_id by construction (no cross-chain mixing
+// — see chains.test.ts), so a plain id lookup is safe and cheap to build once at module scope.
+const chainById = new Map(chains.map((c) => [c.chain.id, c.chain]));
+
+/** PRD.md §4 should-have: one-tap "wrong price" report — opens a prefilled GitHub issue. */
+function PriceReportLink({ item, linkLabel }: { item: Item; linkLabel: string }) {
+  const chain = chainById.get(item.chain_id);
+  if (!chain) return null;
+  return (
+    <a
+      href={buildPriceReportUrl({
+        chainName: chain.name,
+        chainId: chain.id,
+        itemName: item.name,
+        itemId: item.id,
+        price: item.price,
+      })}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-xs text-ink-muted underline underline-offset-2 hover:text-brand"
+    >
+      {linkLabel}
+    </a>
+  );
 }
 
 /** Debounces the screen-reader announcement so it fires ~600ms after inputs settle, not on
@@ -59,8 +88,11 @@ export function ResultsPanel({ result, chainName, runnersUp }: ResultsPanelProps
         {result.coverageItems.length > 0 && (
           <ul className="mt-3 space-y-1 font-display text-sm text-ink">
             {result.coverageItems.map(({ item, qty }) => (
-              <li key={item.id}>
-                {qty}× {item.name} — {pesos(item.price * qty)}
+              <li key={item.id} className="flex flex-wrap items-baseline justify-between gap-x-2">
+                <span>
+                  {qty}× {item.name} — {pesos(item.price * qty)}
+                </span>
+                <PriceReportLink item={item} linkLabel={t.priceReport.linkLabel} />
               </li>
             ))}
           </ul>
@@ -85,15 +117,22 @@ export function ResultsPanel({ result, chainName, runnersUp }: ResultsPanelProps
 
         <ul className="divide-y divide-dashed divide-line">
           {result.coverageItems.map(({ item, qty }) => (
-            <li key={item.id} className="flex items-baseline gap-2 py-2">
-              <span className="text-ink">
-                {qty}× {item.name}
-              </span>
-              <span
-                aria-hidden="true"
-                className="-translate-y-1 flex-1 border-b border-dotted border-line"
-              />
-              <span className="font-display font-medium text-ink">{pesos(item.price * qty)}</span>
+            <li key={item.id} className="py-2">
+              <div className="flex items-baseline gap-2">
+                <span className="text-ink">
+                  {qty}× {item.name}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="-translate-y-1 flex-1 border-b border-dotted border-line"
+                />
+                <span className="font-display font-medium text-ink">
+                  {pesos(item.price * qty)}
+                </span>
+              </div>
+              <div className="mt-0.5 text-right">
+                <PriceReportLink item={item} linkLabel={t.priceReport.linkLabel} />
+              </div>
             </li>
           ))}
         </ul>
@@ -119,8 +158,11 @@ export function ResultsPanel({ result, chainName, runnersUp }: ResultsPanelProps
             <p className="text-sm font-medium text-ink-muted">{bonusLabel}:</p>
             <ul className="mt-1 space-y-1 font-display text-sm text-ink-muted">
               {result.bonusItems.map(({ item, qty }) => (
-                <li key={item.id}>
-                  {qty}× {item.name} — {pesos(item.price * qty)}
+                <li key={item.id} className="flex flex-wrap items-baseline justify-between gap-x-2">
+                  <span>
+                    {qty}× {item.name} — {pesos(item.price * qty)}
+                  </span>
+                  <PriceReportLink item={item} linkLabel={t.priceReport.linkLabel} />
                 </li>
               ))}
             </ul>

@@ -66,6 +66,7 @@ export interface Dictionary {
   inAppBanner: { before: string; after: string; dismiss: string };
   freshness: { fresh: (date: string) => string; stale: (date: string) => string };
   localeToggle: { switchToEnglish: string; switchToTagalog: string };
+  priceReport: { linkLabel: string };
 }
 
 const servingWord = (n: number) => (n === 1 ? "serving" : "servings");
@@ -146,6 +147,7 @@ export const tl: Dictionary = {
     switchToEnglish: "Palitan sa English",
     switchToTagalog: "Manatili sa Tagalog",
   },
+  priceReport: { linkLabel: "Mali ang presyo?" },
 };
 
 export const en: Dictionary = {
@@ -224,6 +226,7 @@ export const en: Dictionary = {
     switchToEnglish: "Switch to English",
     switchToTagalog: "Switch to Tagalog",
   },
+  priceReport: { linkLabel: "Wrong price?" },
 };
 
 export const dictionaries: Record<Locale, Dictionary> = { tl, en };
