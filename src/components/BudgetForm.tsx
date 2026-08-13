@@ -1,30 +1,24 @@
 import { useState } from "react";
+import type { Dictionary } from "../i18n/dictionary.js";
+import { useLocale } from "../i18n/LocaleContext.js";
 import type { SolverMode } from "../solver.js";
-
-// Sulit listed first — it's the app's default mode (App.tsx, ADR 0001), not an equal option
-// among three.
-const MODES: { value: SolverMode; label: string; hint: string }[] = [
-  { value: "maximum-food", label: "Sulit", hint: "Pinaka sulit — max value para sa budget mo" },
-  { value: "feed-everyone", label: "Feed Everyone", hint: "Cheapest way everyone gets a full meal" },
-  { value: "cheapest-possible", label: "Cheapest Possible", hint: "Lowest total spend, even if it can't cover everyone" },
-];
 
 const MAX_BUDGET = 100_000;
 const MAX_HEADCOUNT = 100;
 
-function budgetError(value: string): string | null {
-  if (value === "") return "Kailangan ng budget.";
+function budgetError(value: string, t: Dictionary): string | null {
+  if (value === "") return t.budgetError.required;
   const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) return "Kailangan ng budget na mas malaki sa 0.";
-  if (n > MAX_BUDGET) return `Pinakamataas na budget: ₱${MAX_BUDGET.toLocaleString("en-PH")}.`;
+  if (!Number.isFinite(n) || n <= 0) return t.budgetError.mustBePositive;
+  if (n > MAX_BUDGET) return t.budgetError.max(MAX_BUDGET.toLocaleString("en-PH"));
   return null;
 }
 
-function headcountError(value: string): string | null {
-  if (value === "") return "Kailangan ng bilang ng kakain.";
+function headcountError(value: string, t: Dictionary): string | null {
+  if (value === "") return t.headcountError.required;
   const n = Number(value);
-  if (!Number.isInteger(n) || n < 1) return "Kailangan ng buong bilang, 1 pataas.";
-  if (n > MAX_HEADCOUNT) return `Pinakamataas na bilang: ${MAX_HEADCOUNT}.`;
+  if (!Number.isInteger(n) || n < 1) return t.headcountError.mustBeWholeNumber;
+  if (n > MAX_HEADCOUNT) return t.headcountError.max(MAX_HEADCOUNT);
   return null;
 }
 
@@ -45,16 +39,25 @@ export function BudgetForm({
   onHeadcountChange,
   onModeChange,
 }: BudgetFormProps) {
+  const { t } = useLocale();
   const [touched, setTouched] = useState({ budget: false, headcount: false });
 
-  const budgetMsg = touched.budget ? budgetError(budget) : null;
-  const headcountMsg = touched.headcount ? headcountError(headcount) : null;
+  const budgetMsg = touched.budget ? budgetError(budget, t) : null;
+  const headcountMsg = touched.headcount ? headcountError(headcount, t) : null;
+
+  // Sulit listed first — it's the app's default mode (App.tsx, ADR 0001), not an equal option
+  // among three.
+  const modes: { value: SolverMode; label: string; hint: string }[] = [
+    { value: "maximum-food", ...t.modes.maximumFood },
+    { value: "feed-everyone", ...t.modes.feedEveryone },
+    { value: "cheapest-possible", ...t.modes.cheapestPossible },
+  ];
 
   return (
     <div className="space-y-5">
       <div>
         <label htmlFor="budget" className="mb-1 block text-sm font-medium text-ink">
-          Magkano ang budget mo?
+          {t.budgetLabel}
         </label>
         <div className="relative">
           <span
@@ -89,7 +92,7 @@ export function BudgetForm({
 
       <div>
         <label htmlFor="headcount" className="mb-1 block text-sm font-medium text-ink">
-          Ilan kayong kakain?
+          {t.headcountLabel}
         </label>
         <input
           id="headcount"
@@ -115,9 +118,9 @@ export function BudgetForm({
       </div>
 
       <fieldset className="m-0 border-0 p-0">
-        <legend className="mb-1 block text-sm font-medium text-ink">Mode</legend>
+        <legend className="mb-1 block text-sm font-medium text-ink">{t.modeLegend}</legend>
         <div className="grid grid-cols-1 gap-2">
-          {MODES.map((m) => (
+          {modes.map((m) => (
             <button
               key={m.value}
               type="button"

@@ -5,8 +5,10 @@ import { ChainSelector } from "./components/ChainSelector.js";
 import { DietaryFilters } from "./components/DietaryFilters.js";
 import { FreshnessIndicator } from "./components/FreshnessIndicator.js";
 import { InAppBrowserBanner } from "./components/InAppBrowserBanner.js";
+import { LocaleToggle } from "./components/LocaleToggle.js";
 import { ResultsPanel } from "./components/ResultsPanel.js";
 import { chains } from "./data/chains.js";
+import { useLocale } from "./i18n/LocaleContext.js";
 import { savePriceSnapshot } from "./priceCache.js";
 import { excludeTags, solve, solveAnyChain, type SolverMode } from "./solver.js";
 
@@ -14,6 +16,7 @@ import { excludeTags, solve, solveAnyChain, type SolverMode } from "./solver.js"
 // hand-typed data — the real pipeline lands in Milestone 4/5.
 
 export function App() {
+  const { t } = useLocale();
   const [budget, setBudget] = useState("300");
   const [headcount, setHeadcount] = useState("4");
   // Default is "maximum-food" — the app's "Sulit" (best-value) mode, not the cheapest one.
@@ -72,13 +75,22 @@ export function App() {
       {/* Header sits on the plain page bg (not a solid brand-color block) so the wordmark —
           teal on transparent — has the contrast it needs; see docs/adr/0003. */}
       <header className="px-4 pb-3 pt-6">
-        <div className="mx-auto max-w-md">
-          <h1>
-            <img src={wordmark} alt="barato" width={340} height={81} className="block h-8 w-auto" />
-          </h1>
-          <p className="font-heading mt-1.5 text-sm font-semibold tracking-tight text-ink-muted">
-            Presyo checker — para malaman kung ano ang kayang-kaya
-          </p>
+        <div className="mx-auto flex max-w-md items-start justify-between gap-3">
+          <div>
+            <h1>
+              <img
+                src={wordmark}
+                alt="barato"
+                width={340}
+                height={81}
+                className="block h-8 w-auto"
+              />
+            </h1>
+            <p className="font-heading mt-1.5 text-sm font-semibold tracking-tight text-ink-muted">
+              {t.tagline}
+            </p>
+          </div>
+          <LocaleToggle />
         </div>
       </header>
 
@@ -89,7 +101,7 @@ export function App() {
       <div className="mx-auto max-w-md px-4 pt-5 pb-10">
         <div className="torn-strip torn-strip--scallop" />
         <div className="paper-grain space-y-5 rounded-b-lg border border-t-0 border-line bg-paper p-5 shadow-sm">
-          <h2 className="sr-only">I-set up ang order mo</h2>
+          <h2 className="sr-only">{t.setupHeading}</h2>
           <ChainSelector chains={chains} selectedChainId={chainId} onChange={setChainId} />
 
           <BudgetForm
@@ -107,7 +119,7 @@ export function App() {
         <div className="mt-6">
           {solved ? (
             <div className="result-reveal">
-              <h2 className="sr-only">Resulta</h2>
+              <h2 className="sr-only">{t.resultsHeading}</h2>
               <FreshnessIndicator lastUpdated={solved.lastUpdated} />
               <ResultsPanel
                 result={solved.result}
@@ -116,17 +128,14 @@ export function App() {
               />
             </div>
           ) : (
-            <p className="py-8 text-center text-ink-muted">
-              Ilagay ang budget at bilang ng kakain para makita ang order mo.
-            </p>
+            <p className="py-8 text-center text-ink-muted">{t.emptyState}</p>
           )}
         </div>
 
         <footer className="mt-8 text-center text-xs text-ink-muted">
           <p>
-            Prices are illustrative Milestone-0/1/2 placeholder data, not live prices — see{" "}
-            <code>DATA-PIPELINE.md</code>. Unofficial, not affiliated with or endorsed by any
-            chain shown.
+            {t.footer.before} <code>DATA-PIPELINE.md</code>
+            {t.footer.after}
           </p>
         </footer>
       </div>

@@ -1,6 +1,8 @@
 // PRD.md §4: low-key by default, tone shifts to soft/friendly (never alarming) past ~3-4
 // weeks of staleness. Reads straight off the chain data actually powering the result shown
 // (Chain.last_updated) — that's the one date guaranteed to match what's on screen.
+import { useLocale } from "../i18n/LocaleContext.js";
+
 const STALE_AFTER_DAYS = 25; // midpoint of the "3-4 weeks" band in PRD.md §4
 
 interface FreshnessIndicatorProps {
@@ -8,6 +10,7 @@ interface FreshnessIndicatorProps {
 }
 
 export function FreshnessIndicator({ lastUpdated }: FreshnessIndicatorProps) {
+  const { t } = useLocale();
   const updatedDate = new Date(lastUpdated);
   if (Number.isNaN(updatedDate.getTime())) return null;
 
@@ -27,9 +30,7 @@ export function FreshnessIndicator({ lastUpdated }: FreshnessIndicatorProps) {
           : "mb-1.5 ml-1 inline-block font-display text-xs text-ink-muted"
       }
     >
-      {isStale
-        ? `Prices as of ${formatted} — might be a little out of date`
-        : `Prices as of ${formatted}`}
+      {isStale ? t.freshness.stale(formatted) : t.freshness.fresh(formatted)}
     </p>
   );
 }

@@ -1,10 +1,8 @@
+import { useLocale } from "../i18n/LocaleContext.js";
+
 // PRD.md §4 should-have: simple dietary filters. Tag system, not a full flavor taxonomy —
 // deliberately just the three the brief named (Section 4).
-const FILTERS: { tag: string; label: string }[] = [
-  { tag: "pork", label: "No pork" },
-  { tag: "beef", label: "No beef" },
-  { tag: "spicy", label: "No spicy" },
-];
+const FILTER_TAGS = ["pork", "beef", "spicy"] as const;
 
 interface DietaryFiltersProps {
   excludedTags: string[];
@@ -12,6 +10,8 @@ interface DietaryFiltersProps {
 }
 
 export function DietaryFilters({ excludedTags, onChange }: DietaryFiltersProps) {
+  const { t } = useLocale();
+
   function toggle(tag: string) {
     onChange(
       excludedTags.includes(tag) ? excludedTags.filter((t) => t !== tag) : [...excludedTags, tag],
@@ -20,9 +20,9 @@ export function DietaryFilters({ excludedTags, onChange }: DietaryFiltersProps) 
 
   return (
     <fieldset className="m-0 border-0 p-0">
-      <legend className="mb-1 block text-sm font-medium text-ink">Walang gusto?</legend>
+      <legend className="mb-1 block text-sm font-medium text-ink">{t.dietaryLegend}</legend>
       <div className="flex flex-wrap gap-2">
-        {FILTERS.map(({ tag, label }) => {
+        {FILTER_TAGS.map((tag) => {
           const active = excludedTags.includes(tag);
           return (
             <button
@@ -36,7 +36,7 @@ export function DietaryFilters({ excludedTags, onChange }: DietaryFiltersProps) 
                   : "border-line bg-paper text-ink-muted hover:border-ink-muted"
               }`}
             >
-              {label}
+              {t.dietary[tag]}
             </button>
           );
         })}

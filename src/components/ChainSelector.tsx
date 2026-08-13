@@ -1,3 +1,4 @@
+import { useLocale } from "../i18n/LocaleContext.js";
 import type { ChainData } from "../types.js";
 
 interface ChainSelectorProps {
@@ -7,10 +8,12 @@ interface ChainSelectorProps {
 }
 
 export function ChainSelector({ chains, selectedChainId, onChange }: ChainSelectorProps) {
+  const { t } = useLocale();
+
   return (
     <div>
       <label htmlFor="chain" className="mb-1 block text-sm font-medium text-ink">
-        Saan?
+        {t.chainSelectorLabel}
       </label>
       <select
         id="chain"
@@ -19,7 +22,7 @@ export function ChainSelector({ chains, selectedChainId, onChange }: ChainSelect
         className="w-full rounded-lg border border-line bg-paper px-4 py-3 text-lg text-ink
                    transition-colors focus:border-brand"
       >
-        <option value="any">Any chain (best deal wins)</option>
+        <option value="any">{t.anyChainOption}</option>
         {chains.map((c) => (
           <option key={c.chain.id} value={c.chain.id}>
             {c.chain.name}
