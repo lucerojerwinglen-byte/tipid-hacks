@@ -56,14 +56,6 @@ them resolved). Listed so they don't get silently forgotten.
   coverage dimension is already saturated by the phase-1 selection — worth doing only if real
   usage shows these suggestions read as confusing rather than just slightly wasteful.
 
-## Modeling approximations flagged as worth revisiting
-
-- **Shakey's pizza modeled as contributing to both `main_servings` and `carb_servings` per
-  slice-equivalent** (DATA-MODEL.md §4) — a reasonable v1 approximation, not validated against
-  real Shakey's data yet since that chain's prices weren't directly observable during
-  planning. **Resolves by:** sanity-checking this once Milestone 5 pulls real Shakey's data
-  through the pipeline.
-
 ## Process items with no owner yet
 
 - **Quarterly manual check that the two third-party sources are still the best available
@@ -73,6 +65,13 @@ them resolved). Listed so they don't get silently forgotten.
 
 ## Resolved
 
+- **Shakey's pizza dual-contribution modeling, validated against real data — 2026-08-13.**
+  `src/data/shakeys.ts` was hand-verified against the live site (real Crust/Size pricing, not
+  Milestone-2 placeholders), and the pizza items still model each slice-equivalent as
+  contributing to both `main_servings` and `carb_servings` (DATA-MODEL.md §4) — confirmed sane
+  against real prices/sizing, with a dedicated regression test
+  (`src/chains.test.ts`, "a pizza slice satisfies both main and carb from a single purchase").
+  The v1 approximation holds up; no modeling change needed.
 - **Chowking delivery-app ToS and Shakey's `/legal-terms` — read 2026-08-12.** Chowking:
   `chowking.ph/terms-and-conditions` turned out to *be* the delivery/app ToS (its own title is
   "TERMS AND CONDITIONS FOR THE CHOWKING DELIVERY WEBSITE AND APP," explicitly covering

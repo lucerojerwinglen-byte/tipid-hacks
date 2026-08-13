@@ -115,8 +115,10 @@ three chains, all captured in DATA-PIPELINE.md §1:
   same Groq rate-limiting as KFC before a real run ever finished, and investigating that
   surfaced a second, independent blocker: each category page paginates behind a "LOAD MORE
   PRODUCTS" button and only shows a single "Starts at ₱X" price, with real size/variant pricing
-  behind a picker not present in the rendered page content. `src/data/shakeys.ts` still holds
-  Milestone-2 placeholder prices pending a manual pass.
+  behind a picker not present in the rendered page content. `src/data/shakeys.ts` no longer
+  holds the Milestone-2 placeholder prices — hand-verified against the live site 2026-08-13
+  (clicking through all 11 categories' "Load More" and each item's Crust/Size picker) and
+  re-typed with real prices, sizing, and combos.
 - **Chowking**'s pricing lives behind a Cloudflare-gated JSON API that a real headless-browser
   session only triggers inconsistently and that direct calls get 403'd on — the same shape as
   Jollibee's already-ruled-out official domain, and ruled out for the same reason (§1).
